@@ -6,7 +6,6 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireMember, requireOrganizer } from "@/lib/tenancy";
 import { parseMoney } from "@/lib/format";
-import { TRIAL_DAYS } from "@/lib/plans";
 import { formObject, groupSchema, newInviteCode } from "@/lib/validation";
 import { type ActionState, zodError } from "@/lib/actions";
 
@@ -50,18 +49,6 @@ export async function newSeason(gid: string, _: ActionState, form: FormData): Pr
   ]);
   revalidatePath(`/p/${gid}`, "layout");
   return { ok: "Nova temporada iniciada! Os rankings da temporada começam do zero e o histórico continua salvo." };
-}
-
-export async function startTrial(gid: string) {
-  const { group } = await requireOrganizer(gid);
-  if (group.subscription?.currentPeriodEnd) throw new Error("O período de teste já foi usado.");
-  const end = new Date(Date.now() + TRIAL_DAYS * 86400_000);
-  await db.subscription.upsert({
-    where: { groupId: gid },
-    create: { groupId: gid, plan: "PRO", status: "TRIALING", currentPeriodEnd: end },
-    update: { plan: "PRO", status: "TRIALING", currentPeriodEnd: end },
-  });
-  revalidatePath(`/p/${gid}`, "layout");
 }
 
 export async function updateProfile(gid: string, _: ActionState, form: FormData): Promise<ActionState> {

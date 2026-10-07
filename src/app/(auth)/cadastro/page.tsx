@@ -11,8 +11,8 @@ export default async function SignUpPage({ searchParams }: { searchParams: Promi
   const invited = next?.startsWith("/convite/");
   return (
     <div className="card p-6">
-      <h1 className="text-2xl font-extrabold tracking-tight">Criar conta</h1>
-      <p className="mb-5 mt-1 text-sm text-black/55">
+      <h1 className="text-4xl">Criar conta</h1>
+      <p className="mb-5 mt-1 text-sm text-fg/55">
         {invited ? "Crie sua conta para entrar na pelada." : "Grátis. Leva menos de 1 minuto."}
       </p>
       <ActionForm action={signUp}>
@@ -28,13 +28,13 @@ export default async function SignUpPage({ searchParams }: { searchParams: Promi
         <div>
           <label className="label" htmlFor="password">Senha</label>
           <input className="input" id="password" name="password" type="password" autoComplete="new-password" minLength={8} required />
-          <p className="mt-1 text-xs text-black/45">Mínimo de 8 caracteres.</p>
+          <p className="mt-1 text-xs text-fg/45">Mínimo de 8 caracteres.</p>
         </div>
         <SubmitButton pendingText="Criando...">Criar conta</SubmitButton>
       </ActionForm>
-      <p className="mt-5 text-center text-sm text-black/55">
+      <p className="mt-5 text-center text-sm text-fg/55">
         Já tem conta?{" "}
-        <Link href={`/login${next ? `?next=${encodeURIComponent(next)}` : ""}`} className="font-semibold text-pitch-700">
+        <Link href={`/login${next ? `?next=${encodeURIComponent(next)}` : ""}`} className="font-semibold text-accent">
           Entrar
         </Link>
       </p>

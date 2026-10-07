@@ -32,8 +32,8 @@ export function ActionForm({
   }, [state, resetOnSuccess]);
   return (
     <form ref={ref} action={formAction} className={className}>
-      {state?.error && <div className="rounded-2xl bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{state.error}</div>}
-      {state?.ok && <div className="rounded-2xl bg-pitch-50 px-4 py-3 text-sm font-medium text-pitch-800">{state.ok}</div>}
+      {state?.error && <div className="rounded-2xl bg-red-500/10 px-4 py-3 text-sm font-medium text-red-400">{state.error}</div>}
+      {state?.ok && <div className="rounded-2xl bg-accent/10 px-4 py-3 text-sm font-medium text-accent">{state.ok}</div>}
       {children}
     </form>
   );

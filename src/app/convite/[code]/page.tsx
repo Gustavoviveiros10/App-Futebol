@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
-import { APP_NAME } from "@/lib/actions";
+import { Logo } from "@/components/Logo";
 import { WEEKDAYS } from "@/lib/format";
 import { Avatar } from "@/components/ui";
 import { SubmitButton } from "@/components/forms";
@@ -24,10 +24,10 @@ export default async function InvitePage({ params }: { params: Promise<{ code: s
 
   return (
     <div className="min-h-dvh">
-      <div className="pitch-gradient px-6 pb-20 pt-8 text-center text-white">
-        <p className="text-sm font-bold text-white/60">⚽ {APP_NAME}</p>
+      <div className="pitch-gradient px-6 pb-20 pt-6 text-center text-white">
+        <div className="flex justify-center"><Logo /></div>
         <p className="mt-6 text-sm text-white/70">Você foi convidado para</p>
-        <h1 className="text-3xl font-black tracking-tight">{group.name}</h1>
+        <h1 className="mt-1 text-5xl">{group.name}</h1>
         <p className="mt-2 text-sm text-white/70">
           {[group.weekday != null ? WEEKDAYS[group.weekday] : null, group.time, group.location].filter(Boolean).join(" · ")}
         </p>
@@ -48,12 +48,12 @@ export default async function InvitePage({ params }: { params: Promise<{ code: s
         ) : (
           <div className="card p-5">
             <p className="text-lg font-extrabold">Quem é você nesta pelada?</p>
-            <p className="mb-4 text-sm text-black/55">Se o organizador já te cadastrou, escolha seu nome para manter seu histórico.</p>
+            <p className="mb-4 text-sm text-fg/55">Se o organizador já te cadastrou, escolha seu nome para manter seu histórico.</p>
             {unclaimed.length > 0 && (
               <div className="mb-4 grid grid-cols-2 gap-2">
                 {unclaimed.map((p) => (
                   <form key={p.id} action={joinGroup.bind(null, code, p.id)}>
-                    <SubmitButton pendingText="Entrando..." className="btn w-full justify-start bg-black/[0.04] px-3 py-2.5 text-sm hover:bg-pitch-50">
+                    <SubmitButton pendingText="Entrando..." className="btn w-full justify-start bg-fg/[0.04] px-3 py-2.5 text-sm hover:bg-accent/10">
                       <Avatar name={p.name} photo={p.photo} size={28} />
                       <span className="truncate">{p.nickname || p.name}</span>
                     </SubmitButton>
@@ -63,7 +63,7 @@ export default async function InvitePage({ params }: { params: Promise<{ code: s
             )}
             <form action={joinGroup.bind(null, code, null)}>
               <SubmitButton pendingText="Entrando..." className="btn-primary w-full">
-                {unclaimed.length ? "Não estou na lista — entrar como novo" : `Entrar como ${user.name}`}
+                {unclaimed.length ? "Não estou na lista, entrar como novo" : `Entrar como ${user.name}`}
               </SubmitButton>
             </form>
           </div>

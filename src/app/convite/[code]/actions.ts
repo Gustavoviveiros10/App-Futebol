@@ -3,13 +3,12 @@
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
-import { playerLimit } from "@/lib/plans";
 import { notifyPlayers } from "@/lib/notify";
 
 /** Entra na pelada: reivindicando um cadastro existente (playerId) ou como novo jogador. */
 export async function joinGroup(code: string, playerId: string | null) {
   const user = await requireUser();
-  const group = await db.group.findUnique({ where: { inviteCode: code }, include: { subscription: true } });
+  const group = await db.group.findUnique({ where: { inviteCode: code }, });
   if (!group) throw new Error("Convite inválido ou expirado.");
 
   const existing = await db.player.findFirst({ where: { groupId: group.id, userId: user.id } });
@@ -24,9 +23,6 @@ export async function joinGroup(code: string, playerId: string | null) {
     if (claimed.count === 0) throw new Error("Esse cadastro já foi vinculado a outra conta. Escolha outro ou entre como novo.");
     player = await db.player.findUniqueOrThrow({ where: { id: playerId } });
   } else {
-    const limit = playerLimit(group.subscription);
-    if (limit != null && (await db.player.count({ where: { groupId: group.id, active: true } })) >= limit)
-      throw new Error("Esta pelada atingiu o limite de jogadores do plano. Avise o organizador.");
     player = await db.player.create({ data: { groupId: group.id, userId: user.id, name: user.name } });
     const open = await db.match.findMany({ where: { groupId: group.id, status: { in: ["SCHEDULED", "CLOSED"] } }, select: { id: true } });
     if (open.length) await db.matchPlayer.createMany({ data: open.map((m) => ({ matchId: m.id, playerId: player!.id })), skipDuplicates: true });

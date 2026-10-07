@@ -1,3 +1,4 @@
+import { BarChart3 } from "lucide-react";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { getMembership } from "@/lib/tenancy";
@@ -6,7 +7,6 @@ import { Avatar, Empty, PageHeader } from "@/components/ui";
 
 export const metadata = { title: "Rankings" };
 
-const MEDALS = ["🥇", "🥈", "🥉"];
 
 export default async function Rankings({ params, searchParams }: { params: Promise<{ gid: string }>; searchParams: Promise<{ r?: string; p?: string }> }) {
   const { gid } = await params;
@@ -27,22 +27,22 @@ export default async function Rankings({ params, searchParams }: { params: Promi
   return (
     <>
       <PageHeader title="Rankings" subtitle={season?.name} />
-      <div className="mb-3 grid grid-cols-4 gap-1 rounded-2xl bg-black/[0.05] p-1 text-sm font-semibold">
+      <div className="mb-3 grid grid-cols-4 gap-1 rounded-xl bg-fg/[0.05] p-1 text-sm font-semibold">
         {PERIODS.map((p) => (
-          <Link key={p.key} href={href(rk.key, p.key)} replace scroll={false} className={`rounded-xl py-2 text-center ${period === p.key ? "bg-white shadow-sm" : "text-black/50"}`}>{p.label}</Link>
+          <Link key={p.key} href={href(rk.key, p.key)} replace scroll={false} className={`rounded-lg py-2 text-center ${period === p.key ? "bg-fg/10 text-fg" : "text-fg/50"}`}>{p.label}</Link>
         ))}
       </div>
       <div className="-mx-4 mb-4 flex gap-2 overflow-x-auto px-4 pb-1">
         {RANKINGS.map((r) => (
-          <Link key={r.key} href={href(r.key, period)} replace scroll={false} className={`chip shrink-0 px-3.5 py-2 text-sm ${rk.key === r.key ? "bg-ink text-white" : "bg-white text-black/60 ring-1 ring-black/5"}`}>
-            {r.icon} {r.label}
+          <Link key={r.key} href={href(r.key, period)} replace scroll={false} className={`chip shrink-0 px-3.5 py-2 text-sm ${rk.key === r.key ? "bg-fg text-bg" : "bg-surface text-fg/60 ring-1 ring-fg/[0.07]"}`}>
+            {r.label}
           </Link>
         ))}
       </div>
-      {"hint" in rk && rk.hint && <p className="-mt-2 mb-3 px-1 text-xs text-black/45">{rk.hint}</p>}
+      {"hint" in rk && rk.hint && <p className="-mt-2 mb-3 px-1 text-xs text-fg/45">{rk.hint}</p>}
 
       {rows.length === 0 ? (
-        <Empty icon="📊" title="Sem dados neste período" text="Os rankings aparecem quando o resultado de uma partida é registrado." />
+        <Empty icon={<BarChart3 size={26} />} title="Sem dados neste período" text="Os rankings aparecem quando o resultado de uma partida é registrado." />
       ) : (
         <>
           {/* pódio */}
@@ -51,23 +51,23 @@ export default async function Rankings({ params, searchParams }: { params: Promi
               const x = rows[i];
               if (!x) return <div key={i} />;
               return (
-                <Link key={x.s.player.id} href={`/p/${gid}/jogadores/${x.s.player.id}`} className={`flex flex-col items-center rounded-3xl px-2 pb-3 pt-4 text-center ${i === 0 ? "pitch-gradient pb-5 text-white" : "bg-white ring-1 ring-black/5"}`}>
-                  <span className="text-2xl">{MEDALS[i]}</span>
+                <Link key={x.s.player.id} href={`/p/${gid}/jogadores/${x.s.player.id}`} className={`flex flex-col items-center rounded-2xl px-2 pb-3 pt-3 text-center ${i === 0 ? "pitch-gradient pb-5 text-white" : "bg-surface ring-1 ring-fg/[0.07]"}`}>
+                  <span className={`font-display text-2xl font-bold ${i === 0 ? "text-accent" : "text-fg/40"}`}>{i + 1}º</span>
                   <Avatar name={x.s.player.name} photo={x.s.player.photo} size={i === 0 ? 60 : 48} className="mt-1" />
                   <p className="mt-2 w-full truncate text-sm font-bold">{x.s.player.nickname || x.s.player.name}</p>
-                  <p className={`text-sm font-black ${i === 0 ? "text-lime-accent" : "text-pitch-700"}`}>{rk.fmt(x.v)}</p>
+                  <p className={`text-sm font-black text-accent`}>{rk.fmt(x.v)}</p>
                 </Link>
               );
             })}
           </div>
           {rows.length > 3 && (
-            <div className="card divide-y divide-black/5 p-0">
+            <div className="card divide-y divide-fg/[0.07] p-0">
               {rows.slice(3).map((x, i) => (
-                <Link key={x.s.player.id} href={`/p/${gid}/jogadores/${x.s.player.id}`} className={`flex items-center gap-3 px-4 py-2.5 ${x.s.player.id === me.id ? "bg-pitch-50" : ""}`}>
-                  <span className="w-6 text-center text-sm font-bold text-black/40">{i + 4}</span>
+                <Link key={x.s.player.id} href={`/p/${gid}/jogadores/${x.s.player.id}`} className={`flex items-center gap-3 px-4 py-2.5 ${x.s.player.id === me.id ? "bg-accent/10" : ""}`}>
+                  <span className="w-6 text-center text-sm font-bold text-fg/40">{i + 4}</span>
                   <Avatar name={x.s.player.name} photo={x.s.player.photo} size={32} />
                   <span className="flex-1 truncate font-medium">{x.s.player.nickname || x.s.player.name}</span>
-                  <span className="text-xs text-black/40">{x.s.games}j</span>
+                  <span className="text-xs text-fg/40">{x.s.games}j</span>
                   <span className="w-20 text-right font-bold">{rk.fmt(x.v)}</span>
                 </Link>
               ))}

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Pencil } from "lucide-react";
+import { Pencil, Trophy } from "lucide-react";
 import { db } from "@/lib/db";
 import { getMembership } from "@/lib/tenancy";
 import { POSITIONS, fmtDate, fmtRating, money } from "@/lib/format";
@@ -44,14 +44,14 @@ export default async function PlayerProfile({ params }: { params: Promise<{ gid:
           ) : undefined
         }
       />
-      <div className="pitch-gradient -mt-2 mb-4 flex flex-col items-center rounded-3xl px-4 pb-6 pt-6 text-center text-white">
+      <div className="pitch-gradient -mt-2 mb-4 flex flex-col items-center rounded-2xl px-4 pb-6 pt-6 text-center text-white">
         <Avatar name={p.name} photo={p.photo} size={88} className="ring-4 ring-white/20" />
-        <h1 className="mt-3 text-2xl font-extrabold tracking-tight">{p.nickname || p.name}</h1>
+        <h1 className="mt-3 text-4xl">{p.nickname || p.name}</h1>
         {p.nickname && <p className="text-sm text-white/60">{p.name}</p>}
         <div className="mt-2 flex flex-wrap justify-center gap-1.5">
-          <span className="chip bg-white/15">{pos.emoji} {pos.label}</span>
+          <span className="chip bg-white/15">{pos.label}</span>
           <span className="chip bg-white/15">{p.billingType === "MONTHLY" ? "Mensalista" : "Avulso"}</span>
-          {p.role === "ORGANIZER" && <span className="chip bg-lime-accent text-pitch-950">👑 Organizador</span>}
+          {p.role === "ORGANIZER" && <span className="chip bg-accent text-bg">Organizador</span>}
           {!p.active && <span className="chip bg-red-500/80">Inativo</span>}
         </div>
         <p className="mt-2 text-xs text-white/50">Na pelada desde {fmtDate(p.joinedAt, group.timezone)}</p>
@@ -74,10 +74,10 @@ export default async function PlayerProfile({ params }: { params: Promise<{ gid:
         <>
           <p className="section-title">Temporada atual</p>
           <div className="card mb-4 flex justify-around text-center">
-            <div><p className="text-xl font-extrabold">{season.games}</p><p className="text-xs text-black/50">jogos</p></div>
-            <div><p className="text-xl font-extrabold">{season.goals}</p><p className="text-xs text-black/50">gols</p></div>
-            <div><p className="text-xl font-extrabold">{season.assists}</p><p className="text-xs text-black/50">assist.</p></div>
-            <div><p className="text-xl font-extrabold">{fmtRating(season.avgRating)}</p><p className="text-xs text-black/50">média</p></div>
+            <div><p className="text-xl font-extrabold">{season.games}</p><p className="text-xs text-fg/50">jogos</p></div>
+            <div><p className="text-xl font-extrabold">{season.goals}</p><p className="text-xs text-fg/50">gols</p></div>
+            <div><p className="text-xl font-extrabold">{season.assists}</p><p className="text-xs text-fg/50">assist.</p></div>
+            <div><p className="text-xl font-extrabold">{fmtRating(season.avgRating)}</p><p className="text-xs text-fg/50">média</p></div>
           </div>
         </>
       )}
@@ -86,31 +86,31 @@ export default async function PlayerProfile({ params }: { params: Promise<{ gid:
         <div className="card mb-4 flex items-center justify-between">
           <div>
             <p className="font-semibold">Nível para o sorteio</p>
-            <p className="text-xs text-black/45">Só organizadores veem</p>
+            <p className="text-xs text-fg/45">Só organizadores veem</p>
           </div>
-          <span className="text-2xl font-black text-pitch-700">{p.skill}/10</span>
+          <span className="text-2xl font-black text-accent">{p.skill}/10</span>
         </div>
       )}
 
       {recent.length > 0 && (
         <>
           <p className="section-title">Últimas partidas</p>
-          <div className="card mb-4 divide-y divide-black/5 p-0">
+          <div className="card mb-4 divide-y divide-fg/[0.07] p-0">
             {recent.map((mp) => {
               const o = teamOutcome(mp.match.teams, mp.teamId);
               return (
                 <Link key={mp.id} href={`/p/${gid}/partidas/${mp.matchId}`} className="flex items-center gap-3 px-4 py-3">
-                  <span className={`flex h-8 w-8 items-center justify-center rounded-xl text-sm font-black ${o === "W" ? "bg-pitch-100 text-pitch-800" : o === "L" ? "bg-red-100 text-red-700" : "bg-black/5 text-black/60"}`}>
+                  <span className={`flex h-8 w-8 items-center justify-center rounded-xl text-sm font-black ${o === "W" ? "bg-accent/10 text-accent" : o === "L" ? "bg-red-500/15 text-red-400" : "bg-fg/[0.06] text-fg/60"}`}>
                     {o === "W" ? "V" : o === "L" ? "D" : o === "D" ? "E" : "–"}
                   </span>
                   <div className="flex-1 text-sm">
                     <p className="font-semibold">{fmtDate(mp.match.date, group.timezone)}</p>
-                    <p className="text-black/50">{mp.team?.name ?? "Sem time"}</p>
+                    <p className="text-fg/50">{mp.team?.name ?? "Sem time"}</p>
                   </div>
                   <div className="text-right text-sm">
-                    {mp.goals > 0 && <span className="mr-2">⚽ {mp.goals}</span>}
-                    {mp.assists > 0 && <span className="mr-2">🎯 {mp.assists}</span>}
-                    {mp.match.mvpPlayerId === p.id && <span className="mr-2">🏆</span>}
+                    {mp.goals > 0 && <span className="mr-2">{mp.goals} G</span>}
+                    {mp.assists > 0 && <span className="mr-2">{mp.assists} A</span>}
+                    {mp.match.mvpPlayerId === p.id && <Trophy size={13} className="mr-2 inline text-gold" />}
                     {mp.rating != null && <Badge tone="dark">{fmtRating(mp.rating)}</Badge>}
                   </div>
                 </Link>
@@ -126,13 +126,13 @@ export default async function PlayerProfile({ params }: { params: Promise<{ gid:
             <p className="section-title">Financeiro</p>
             <FinanceBadge status={playerFinanceStatus(payments)} />
           </div>
-          <div className="card mb-4 divide-y divide-black/5 p-0">
-            {payments.length === 0 && <p className="px-4 py-4 text-sm text-black/50">Nenhuma cobrança.</p>}
+          <div className="card mb-4 divide-y divide-fg/[0.07] p-0">
+            {payments.length === 0 && <p className="px-4 py-4 text-sm text-fg/50">Nenhuma cobrança.</p>}
             {payments.map((pay) => (
               <div key={pay.id} className="flex items-center justify-between px-4 py-3 text-sm">
                 <div>
                   <p className="font-semibold">{pay.description ?? (pay.type === "MONTHLY" ? "Mensalidade" : "Avulso")}{pay.reference ? ` ${pay.reference.split("-").reverse().join("/")}` : ""}</p>
-                  <p className="text-black/50">Vence {fmtDate(pay.dueDate, group.timezone)}</p>
+                  <p className="text-fg/50">Vence {fmtDate(pay.dueDate, group.timezone)}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="font-bold">{money(pay.amountCents)}</span>

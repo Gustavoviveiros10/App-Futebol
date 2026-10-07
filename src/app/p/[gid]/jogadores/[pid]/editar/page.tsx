@@ -29,7 +29,7 @@ export default async function EditPlayer({ params }: { params: Promise<{ gid: st
         <div className="mt-4 flex flex-col gap-2">
           {p.user && (
             <form action={unlinkAccount.bind(null, gid, pid)}>
-              <p className="mb-2 px-1 text-sm text-black/50">Conta vinculada: {p.user.email}</p>
+              <p className="mb-2 px-1 text-sm text-fg/50">Conta vinculada: {p.user.email}</p>
               <ConfirmButton className="btn-ghost w-full" message="Desvincular a conta deste jogador? Ele poderá entrar de novo pelo convite.">
                 Desvincular conta
               </ConfirmButton>

@@ -12,7 +12,7 @@ export const getMembership = cache(async (groupId: string) => {
   const user = await requireUser();
   const player = await db.player.findFirst({
     where: { groupId, userId: user.id, active: true },
-    include: { group: { include: { subscription: true } } },
+    include: { group: true },
   });
   if (!player) notFound();
   return {

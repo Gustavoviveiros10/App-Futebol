@@ -27,16 +27,16 @@ export function PhotoInput({ name, initial, defaultValue }: { name: string; init
     <div className="flex items-center gap-4">
       <button type="button" onClick={() => fileRef.current?.click()} className="relative">
         <Avatar name={initial || "?"} photo={photo || null} size={72} />
-        <span className="absolute -bottom-1 -right-1 rounded-full bg-ink p-1.5 text-white">
+        <span className="absolute -bottom-1 -right-1 rounded-full bg-accent p-1.5 text-bg">
           <Camera size={14} />
         </span>
       </button>
-      <div className="text-sm text-black/55">
-        <button type="button" className="font-semibold text-pitch-700" onClick={() => fileRef.current?.click()}>
+      <div className="text-sm text-fg/55">
+        <button type="button" className="font-semibold text-accent" onClick={() => fileRef.current?.click()}>
           {photo ? "Trocar foto" : "Adicionar foto"}
         </button>
         {photo && (
-          <button type="button" className="ml-3 text-black/45" onClick={() => setPhoto("")}>
+          <button type="button" className="ml-3 text-fg/45" onClick={() => setPhoto("")}>
             Remover
           </button>
         )}

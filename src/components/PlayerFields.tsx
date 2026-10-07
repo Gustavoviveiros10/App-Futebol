@@ -27,8 +27,8 @@ export function PlayerFields({ p, defaultMonthly, canSetRole }: { p?: Player; de
           {Object.entries(POSITIONS).map(([k, v]) => (
             <label key={k} className="cursor-pointer">
               <input type="radio" name="position" value={k} defaultChecked={(p?.position ?? "MIDFIELDER") === k} className="peer sr-only" />
-              <span className="flex flex-col items-center rounded-2xl bg-black/[0.04] px-2 py-2.5 text-sm font-semibold text-black/60 ring-pitch-500 peer-checked:bg-pitch-50 peer-checked:text-pitch-800 peer-checked:ring-2">
-                <span className="text-lg">{v.emoji}</span>
+              <span className="flex flex-col items-center rounded-2xl bg-fg/[0.04] px-2 py-2.5 text-sm font-semibold text-fg/60 ring-accent/40 peer-checked:bg-accent/10 peer-checked:text-accent peer-checked:ring-2">
+                <span className="font-display text-lg font-bold">{v.short}</span>
                 {v.label}
               </span>
             </label>
@@ -45,7 +45,7 @@ export function PlayerFields({ p, defaultMonthly, canSetRole }: { p?: Player; de
           ].map(([k, l]) => (
             <label key={k} className="cursor-pointer">
               <input type="radio" name="billingType" value={k} defaultChecked={(p?.billingType ?? "MONTHLY") === k} className="peer sr-only" />
-              <span className="block rounded-2xl bg-black/[0.04] py-3 text-center font-semibold text-black/60 ring-pitch-500 peer-checked:bg-pitch-50 peer-checked:text-pitch-800 peer-checked:ring-2">{l}</span>
+              <span className="block rounded-2xl bg-fg/[0.04] py-3 text-center font-semibold text-fg/60 ring-accent/40 peer-checked:bg-accent/10 peer-checked:text-accent peer-checked:ring-2">{l}</span>
             </label>
           ))}
         </div>
@@ -57,11 +57,11 @@ export function PlayerFields({ p, defaultMonthly, canSetRole }: { p?: Player; de
 
       <div>
         <label className="label" htmlFor="skill">Nível (1 a 10)</label>
-        <input className="w-full accent-pitch-600" id="skill" name="skill" type="range" min={1} max={10} defaultValue={p?.skill ?? 5} />
-        <div className="flex justify-between px-0.5 text-xs text-black/40">
+        <input className="w-full accent-accent" id="skill" name="skill" type="range" min={1} max={10} defaultValue={p?.skill ?? 5} />
+        <div className="flex justify-between px-0.5 text-xs text-fg/40">
           {Array.from({ length: 10 }, (_, i) => <span key={i}>{i + 1}</span>)}
         </div>
-        <p className="mt-1 text-xs text-black/45">Só você vê. Serve apenas como referência para equilibrar os times.</p>
+        <p className="mt-1 text-xs text-fg/45">Só você vê. Serve apenas como referência para equilibrar os times.</p>
       </div>
 
       <div className="grid grid-cols-2 gap-3">

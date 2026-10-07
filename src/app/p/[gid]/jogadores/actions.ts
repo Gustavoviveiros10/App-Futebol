@@ -5,7 +5,6 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireOrganizer } from "@/lib/tenancy";
 import { parseMoney, zonedToUtc } from "@/lib/format";
-import { playerLimit } from "@/lib/plans";
 import { playerSchema } from "@/lib/players";
 import { formObject } from "@/lib/validation";
 import { type ActionState, zodError } from "@/lib/actions";
@@ -28,11 +27,6 @@ export async function createPlayer(gid: string, _: ActionState, form: FormData):
   const { group } = await requireOrganizer(gid);
   const parsed = playerSchema.safeParse(formObject(form));
   if (!parsed.success) return zodError(parsed.error.issues);
-  const limit = playerLimit(group.subscription);
-  if (limit != null) {
-    const count = await db.player.count({ where: { groupId: gid, active: true } });
-    if (count >= limit) return { error: `O plano gratuito permite até ${limit} jogadores. Ative o Pro em Ajustes para cadastrar mais.` };
-  }
   const player = await db.player.create({ data: { groupId: gid, ...toData(parsed.data, group.timezone) } });
   // entra como pendente nas partidas abertas
   const open = await db.match.findMany({ where: { groupId: gid, status: { in: ["SCHEDULED", "CLOSED"] } }, select: { id: true } });
