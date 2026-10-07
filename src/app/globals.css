@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --color-pitch-50: #effdf4;
+  --color-pitch-100: #d8f9e4;
+  --color-pitch-200: #b2f1cb;
+  --color-pitch-300: #7be3a8;
+  --color-pitch-400: #3fcb7f;
+  --color-pitch-500: #18b062;
+  --color-pitch-600: #0d8f4e;
+  --color-pitch-700: #0d7142;
+  --color-pitch-800: #0f5a37;
+  --color-pitch-900: #0d4a2f;
+  --color-pitch-950: #04291a;
+  --color-lime-accent: #c6f432;
+  --color-ink: #0e1512;
+  --color-paper: #f3f5f2;
+}
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pitch-gradient {
+  background:
+    radial-gradient(120% 80% at 100% 0%, rgb(198 244 50 / 0.18), transparent 55%),
+    repeating-linear-gradient(90deg, rgb(255 255 255 / 0.035) 0 28px, transparent 28px 56px),
+    linear-gradient(160deg, var(--color-pitch-700), var(--color-pitch-950));
+}
+
+.safe-bottom {
+  padding-bottom: max(env(safe-area-inset-bottom), 0.5rem);
+}
+
+@utility card {
+  @apply rounded-3xl bg-white p-4 shadow-[0_1px_2px_rgb(0_0_0/0.04),0_8px_24px_-12px_rgb(0_0_0/0.12)] ring-1 ring-black/5;
+}
+
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-[15px] font-semibold transition active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
+}
+
+@utility btn-primary {
+  @apply btn bg-pitch-600 text-white hover:bg-pitch-700;
+}
+
+@utility btn-accent {
+  @apply btn bg-lime-accent text-pitch-950 hover:brightness-95;
+}
+
+@utility btn-dark {
+  @apply btn bg-ink text-white hover:bg-black;
+}
+
+@utility btn-ghost {
+  @apply btn bg-black/5 text-ink hover:bg-black/10;
+}
+
+@utility btn-danger {
+  @apply btn bg-red-50 text-red-700 hover:bg-red-100;
+}
+
+@utility btn-whatsapp {
+  @apply btn bg-[#25D366] text-white hover:brightness-95;
+}
+
+@utility btn-sm {
+  @apply px-3! py-2! text-sm! rounded-xl!;
+}
+
+@utility input {
+  @apply w-full rounded-2xl border-0 bg-black/[0.04] px-4 py-3 text-[16px] outline-none ring-1 ring-transparent transition placeholder:text-black/35 focus:bg-white focus:ring-2 focus:ring-pitch-500;
+}
+
+@utility label {
+  @apply mb-1.5 block text-sm font-medium text-black/70;
+}
+
+@utility chip {
+  @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold;
+}
+
+@utility section-title {
+  @apply mb-2 px-1 text-xs font-bold uppercase tracking-wider text-black/45;
+}

@@ -1,0 +1,331 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── Contas ──────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sessions      Session[]
+  resetTokens   PasswordResetToken[]
+  players       Player[]
+  notifications Notification[]
+  ownedGroups   Group[]              @relation("GroupOwner")
+}
+
+model Session {
+  id        String   @id // hash SHA-256 do token do cookie
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model PasswordResetToken {
+  id        String    @id // hash SHA-256 do token enviado por e-mail
+  userId    String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ─── Pelada (tenant) ─────────────────────────────────────
+
+model Group {
+  id               String   @id @default(cuid())
+  name             String
+  description      String?
+  location         String?
+  weekday          Int? // 0 = domingo ... 6 = sábado
+  time             String? // "20:00"
+  durationMin      Int      @default(60)
+  monthlyFeeCents  Int      @default(0)
+  singleFeeCents   Int      @default(0)
+  maxPlayers       Int?
+  teamsCount       Int      @default(2)
+  paymentDueDay    Int      @default(10)
+  timezone         String   @default("America/Sao_Paulo")
+  inviteCode       String   @unique
+  ownerId          String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  owner         User           @relation("GroupOwner", fields: [ownerId], references: [id])
+  subscription  Subscription?
+  players       Player[]
+  seasons       Season[]
+  matches       Match[]
+  payments      Payment[]
+  notifications Notification[]
+}
+
+enum Plan {
+  FREE
+  PRO
+  PREMIUM
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  TRIALING
+  PAST_DUE
+  CANCELED
+}
+
+model Subscription {
+  id               String             @id @default(cuid())
+  groupId          String             @unique
+  plan             Plan               @default(FREE)
+  status           SubscriptionStatus @default(ACTIVE)
+  currentPeriodEnd DateTime?
+  provider         String? // ex.: "stripe", "mercadopago", "asaas"
+  externalId       String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  group            Group              @relation(fields: [groupId], references: [id], onDelete: Cascade)
+}
+
+enum Role {
+  ORGANIZER
+  PLAYER
+}
+
+enum BillingType {
+  MONTHLY
+  PER_MATCH
+}
+
+enum Position {
+  GOALKEEPER
+  DEFENDER
+  FULLBACK
+  MIDFIELDER
+  FORWARD
+}
+
+model Player {
+  id              String      @id @default(cuid())
+  groupId         String
+  userId          String?
+  role            Role        @default(PLAYER)
+  name            String
+  nickname        String?
+  phone           String?
+  photo           String? // miniatura comprimida (data URL) na v1
+  billingType     BillingType @default(PER_MATCH)
+  monthlyFeeCents Int?
+  position        Position    @default(MIDFIELDER)
+  skill           Int         @default(5) // 1-10, só o organizador vê
+  joinedAt        DateTime    @default(now())
+  active          Boolean     @default(true)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  group        Group         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user         User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  matchPlayers MatchPlayer[]
+  payments     Payment[]
+  votesGiven   Vote[]        @relation("Voter")
+  votesGot     Vote[]        @relation("Voted")
+  mvpOf        Match[]       @relation("MatchMvp")
+
+  @@unique([groupId, userId])
+  @@index([groupId])
+}
+
+model Season {
+  id        String    @id @default(cuid())
+  groupId   String
+  name      String
+  startsAt  DateTime
+  endsAt    DateTime?
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  group     Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  matches   Match[]
+
+  @@index([groupId])
+}
+
+// ─── Partidas ────────────────────────────────────────────
+
+enum MatchStatus {
+  SCHEDULED // aberta para confirmações
+  CLOSED // lista fechada
+  DRAWN // times sorteados
+  FINISHED // resultado registrado
+  CANCELED
+}
+
+model Match {
+  id             String      @id @default(cuid())
+  groupId        String
+  seasonId       String?
+  date           DateTime
+  durationMin    Int         @default(60)
+  location       String?
+  singleFeeCents Int         @default(0)
+  maxPlayers     Int?
+  teamsCount     Int         @default(2)
+  status         MatchStatus @default(SCHEDULED)
+  votingOpen     Boolean     @default(false)
+  mvpPlayerId    String?
+  notes          String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  group    Group         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  season   Season?       @relation(fields: [seasonId], references: [id], onDelete: SetNull)
+  mvp      Player?       @relation("MatchMvp", fields: [mvpPlayerId], references: [id], onDelete: SetNull)
+  teams    Team[]
+  players  MatchPlayer[]
+  votes    Vote[]
+  payments Payment[]
+
+  @@index([groupId, date])
+}
+
+model Team {
+  id        String        @id @default(cuid())
+  matchId   String
+  name      String
+  color     String // chave de cor: "blue", "yellow", ...
+  score     Int?
+  order     Int           @default(0)
+  match     Match         @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  players   MatchPlayer[]
+
+  @@index([matchId])
+}
+
+enum Attendance {
+  CONFIRMED
+  WAITLIST
+  MAYBE
+  DECLINED
+  PENDING
+}
+
+model MatchPlayer {
+  id          String     @id @default(cuid())
+  matchId     String
+  playerId    String
+  status      Attendance @default(PENDING)
+  respondedAt DateTime?
+  queuedAt    DateTime? // ordem na lista de espera / ordem de confirmação
+  teamId      String?
+
+  // estatísticas da partida
+  played      Boolean @default(false)
+  goals       Int     @default(0)
+  assists     Int     @default(0)
+  yellowCards Int     @default(0)
+  redCards    Int     @default(0)
+  saves       Int     @default(0)
+  rating      Float? // nota 1-10
+
+  match  Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  team   Team?  @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
+  @@unique([matchId, playerId])
+  @@index([playerId])
+}
+
+model Vote {
+  id        String   @id @default(cuid())
+  matchId   String
+  voterId   String
+  votedId   String
+  createdAt DateTime @default(now())
+  match     Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  voter     Player   @relation("Voter", fields: [voterId], references: [id], onDelete: Cascade)
+  voted     Player   @relation("Voted", fields: [votedId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, voterId])
+}
+
+// ─── Financeiro ──────────────────────────────────────────
+
+enum PaymentType {
+  MONTHLY
+  MATCH
+  OTHER
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  CANCELED
+}
+
+enum PaymentMethod {
+  PIX
+  CASH
+  CARD
+  TRANSFER
+  OTHER
+}
+
+model Payment {
+  id          String         @id @default(cuid())
+  groupId     String
+  playerId    String
+  matchId     String?
+  type        PaymentType
+  reference   String? // "2026-10" para mensalidades
+  description String?
+  amountCents Int
+  status      PaymentStatus  @default(PENDING)
+  dueDate     DateTime
+  paidAt      DateTime?
+  method      PaymentMethod?
+  // preparado para PIX / gateways
+  provider    String?
+  externalId  String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  group  Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  match  Match? @relation(fields: [matchId], references: [id], onDelete: SetNull)
+
+  @@unique([playerId, type, reference])
+  @@unique([playerId, matchId])
+  @@index([groupId, status])
+}
+
+// ─── Notificações ────────────────────────────────────────
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  groupId   String?
+  type      String
+  title     String
+  body      String?
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group     Group?    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+}

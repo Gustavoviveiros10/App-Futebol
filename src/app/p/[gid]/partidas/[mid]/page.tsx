@@ -1,0 +1,415 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { Bell, Clock, Lock, MapPin, Pencil, Shuffle, Scale, Unlock, Users } from "lucide-react";
+import type { Attendance } from "@prisma/client";
+import { db } from "@/lib/db";
+import { getMembership } from "@/lib/tenancy";
+import { POSITIONS, fmtDayMonth, fmtRating, fmtTime, money, weekdayLong } from "@/lib/format";
+import { MATCH_STATUS_LABEL } from "@/lib/matches";
+import { ATTENDANCE_LABEL } from "@/lib/attendance";
+import { inviteToMatchText, listText, reminderText, resultText, teamsText } from "@/lib/share";
+import { playerStrength, teamStrength } from "@/lib/draw";
+import { Avatar, Badge } from "@/components/ui";
+import { SubmitButton } from "@/components/forms";
+import { WhatsAppButton } from "@/components/WhatsAppButton";
+import { AutoSubmitSelect } from "@/components/AutoSubmitSelect";
+import { closeVoting, drawTeams, moveToTeam, remindPending, reopenVoting, respond, setListOpen, setPlayerStatus, vote } from "../actions";
+
+const TEAM_COLORS: Record<string, string> = {
+  blue: "bg-sky-500",
+  yellow: "bg-amber-400",
+  red: "bg-rose-500",
+  green: "bg-pitch-500",
+  black: "bg-ink",
+  white: "bg-white ring-1 ring-black/15",
+};
+
+type Tab = "presenca" | "times" | "resultado";
+
+export default async function MatchPage({ params, searchParams }: { params: Promise<{ gid: string; mid: string }>; searchParams: Promise<{ aba?: Tab; criada?: string; cobrados?: string }> }) {
+  const { gid, mid } = await params;
+  const sp = await searchParams;
+  const { group, isOrganizer, player: me } = await getMembership(gid);
+  const match = await db.match.findFirst({
+    where: { id: mid, groupId: gid },
+    include: {
+      teams: { orderBy: { order: "asc" } },
+      players: { include: { player: true }, orderBy: [{ queuedAt: "asc" }, { player: { name: "asc" } }] },
+      votes: true,
+      mvp: true,
+    },
+  });
+  if (!match) notFound();
+  const tz = group.timezone;
+
+  const by = (s: Attendance) => match.players.filter((p) => p.status === s && p.player.active);
+  const confirmed = by("CONFIRMED");
+  const waitlist = by("WAITLIST");
+  const maybe = by("MAYBE");
+  const pending = by("PENDING");
+  const declined = by("DECLINED");
+  const mine = match.players.find((p) => p.playerId === me.id);
+  const open = match.status === "SCHEDULED";
+  const finished = match.status === "FINISHED";
+  const canceled = match.status === "CANCELED";
+  const tab: Tab = sp.aba ?? (finished ? "resultado" : match.status === "DRAWN" ? "times" : "presenca");
+  const st = MATCH_STATUS_LABEL[match.status];
+  const base = `/p/${gid}/partidas/${mid}`;
+  const nm = (p: { name: string; nickname: string | null }) => p.nickname || p.name;
+
+  return (
+    <>
+      {/* Cabeçalho */}
+      <div className="pitch-gradient relative mt-2 overflow-hidden rounded-3xl p-5 text-white">
+        <div className="flex items-start justify-between">
+          <Link href={`/p/${gid}/partidas`} className="text-sm font-semibold text-white/60">← Partidas</Link>
+          {isOrganizer && !canceled && (
+            <Link href={`${base}/editar`} className="rounded-full bg-white/10 p-2 hover:bg-white/20" aria-label="Editar partida">
+              <Pencil size={16} />
+            </Link>
+          )}
+        </div>
+        <p className="mt-3 text-sm font-semibold uppercase tracking-wider text-lime-accent">{weekdayLong(match.date, tz)}, {fmtDayMonth(match.date, tz)}</p>
+        <p className="text-4xl font-black tracking-tight">{fmtTime(match.date, tz)}</p>
+        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-white/70">
+          {match.location && <span className="flex items-center gap-1"><MapPin size={14} /> {match.location}</span>}
+          <span className="flex items-center gap-1"><Clock size={14} /> {match.durationMin} min</span>
+          {match.singleFeeCents > 0 && <span>Avulso {money(match.singleFeeCents)}</span>}
+        </div>
+        <div className="mt-4 flex items-center gap-2">
+          <span className={`chip ${canceled ? "bg-red-500" : "bg-white/15"}`}>{st.label}</span>
+          {!finished && !canceled && (
+            <span className="chip bg-white/15"><Users size={12} /> {match.maxPlayers ? `${confirmed.length}/${match.maxPlayers}` : confirmed.length} confirmados</span>
+          )}
+        </div>
+        {match.notes && <p className="mt-3 rounded-2xl bg-black/20 px-3 py-2 text-sm text-white/85">📌 {match.notes}</p>}
+      </div>
+
+      {sp.criada && isOrganizer && (
+        <div className="card mt-4 bg-pitch-50 ring-pitch-200">
+          <p className="font-bold">Partida criada! 🎉</p>
+          <p className="mb-3 text-sm text-black/55">Agora mande o link no grupo para a galera confirmar.</p>
+          <WhatsAppButton text={inviteToMatchText(match, tz, confirmed.length, match.maxPlayers)} label="Enviar convite no WhatsApp" />
+        </div>
+      )}
+
+      {/* Você vai jogar? */}
+      {open && (
+        <div className="card mt-4">
+          <p className="text-center text-lg font-extrabold">Você vai jogar?</p>
+          {mine?.status === "WAITLIST" && (
+            <p className="mt-1 text-center text-sm font-semibold text-amber-700">
+              Você está na lista de espera ({waitlist.findIndex((w) => w.id === mine.id) + 1}º). Se abrir vaga, você entra automaticamente.
+            </p>
+          )}
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            {([
+              ["CONFIRMED", "✅", "Vou", "bg-pitch-600 text-white ring-pitch-600"],
+              ["DECLINED", "❌", "Não vou", "bg-red-500 text-white ring-red-500"],
+              ["MAYBE", "⏳", "Não sei", "bg-amber-400 text-pitch-950 ring-amber-400"],
+            ] as const).map(([s, icon, label, activeCls]) => {
+              const active = mine?.status === s || (s === "CONFIRMED" && mine?.status === "WAITLIST");
+              return (
+                <form key={s} action={respond.bind(null, gid, mid, s)}>
+                  <SubmitButton pendingText="..." className={`btn w-full flex-col gap-0.5 py-3.5 ring-2 ${active ? activeCls : "bg-black/[0.04] text-black/70 ring-transparent"}`}>
+                    <span className="text-xl">{icon}</span>
+                    <span className="text-sm">{label}</span>
+                  </SubmitButton>
+                </form>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      {match.status === "CLOSED" && <p className="mt-4 rounded-2xl bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">🔒 A lista foi fechada. Mudou de ideia? Fale com o organizador.</p>}
+
+      {/* Abas */}
+      {!canceled && (
+        <div className="sticky top-14 z-10 mt-4 grid grid-cols-3 gap-1 rounded-2xl bg-black/[0.05] p-1 text-sm font-semibold backdrop-blur">
+          {([
+            ["presenca", "Presença"],
+            ["times", "Times"],
+            ["resultado", "Resultado"],
+          ] as const).map(([k, l]) => (
+            <Link key={k} href={`${base}?aba=${k}`} replace scroll={false} className={`rounded-xl py-2 text-center ${tab === k ? "bg-white shadow-sm" : "text-black/50"}`}>
+              {l}
+            </Link>
+          ))}
+        </div>
+      )}
+
+      {/* PRESENÇA */}
+      {tab === "presenca" && !canceled && (
+        <div className="mt-4 flex flex-col gap-4">
+          {isOrganizer && !finished && (
+            <div className="grid grid-cols-2 gap-2">
+              <form action={setListOpen.bind(null, gid, mid, !open)}>
+                <SubmitButton className="btn-dark btn-sm w-full">{open ? <><Lock size={16} /> Fechar lista</> : <><Unlock size={16} /> Reabrir lista</>}</SubmitButton>
+              </form>
+              <form action={remindPending.bind(null, gid, mid)}>
+                <SubmitButton className="btn-ghost btn-sm w-full" pendingText="Avisando...">
+                  <Bell size={16} /> Lembrar ({pending.length + maybe.length})
+                </SubmitButton>
+              </form>
+            </div>
+          )}
+          {isOrganizer && !finished && (
+            <div className="grid grid-cols-2 gap-2">
+              <WhatsAppButton className="btn-whatsapp btn-sm" label="Enviar lista" text={listText(match, tz, { confirmed: confirmed.map((c) => c.player), waitlist: waitlist.map((c) => c.player), pending: [...pending, ...maybe].map((c) => c.player), declined: declined.map((c) => c.player) })} />
+              <WhatsAppButton className="btn-whatsapp btn-sm" label="Cobrar resposta" text={reminderText(match, tz, [...pending, ...maybe].map((c) => c.player), confirmed.length)} />
+            </div>
+          )}
+
+          <AttendanceGroup title={`✅ Confirmados (${confirmed.length}${match.maxPlayers ? `/${match.maxPlayers}` : ""})`} list={confirmed} numbered />
+          {waitlist.length > 0 && <AttendanceGroup title={`⏳ Lista de espera (${waitlist.length})`} list={waitlist} numbered startAt={match.maxPlayers ?? confirmed.length} />}
+          {maybe.length > 0 && <AttendanceGroup title={`🤔 Ainda não sabem (${maybe.length})`} list={maybe} />}
+          {pending.length > 0 && <AttendanceGroup title={`❔ Pendentes (${pending.length})`} list={pending} />}
+          {declined.length > 0 && <AttendanceGroup title={`❌ Ausentes (${declined.length})`} list={declined} />}
+        </div>
+      )}
+
+      {/* TIMES */}
+      {tab === "times" && !canceled && (
+        <div className="mt-4 flex flex-col gap-4">
+          {isOrganizer && !finished && (
+            <div className="card">
+              <p className="font-bold">🎲 Sortear times</p>
+              <p className="mb-3 text-sm text-black/55">
+                {confirmed.length} confirmados em {match.teamsCount} times. O equilibrado usa nível, posição, goleiros e histórico de desempenho.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <form action={drawTeams.bind(null, gid, mid, "BALANCED")}>
+                  <SubmitButton className="btn-accent w-full" pendingText="Sorteando..."><Scale size={18} /> Equilibrado</SubmitButton>
+                </form>
+                <form action={drawTeams.bind(null, gid, mid, "RANDOM")}>
+                  <SubmitButton className="btn-ghost w-full" pendingText="Sorteando..."><Shuffle size={18} /> Aleatório</SubmitButton>
+                </form>
+              </div>
+              {match.status === "SCHEDULED" && <p className="mt-2 text-xs text-black/45">Dica: feche a lista antes de sortear para ninguém entrar depois.</p>}
+            </div>
+          )}
+
+          {match.teams.length === 0 ? (
+            <div className="card py-10 text-center text-black/50">
+              <p className="text-4xl">🎽</p>
+              <p className="mt-2 font-semibold">Os times ainda não foram sorteados.</p>
+            </div>
+          ) : (
+            <>
+              {match.teams.map((t) => {
+                const members = match.players.filter((p) => p.teamId === t.id).sort((a, b) => Number(b.player.position === "GOALKEEPER") - Number(a.player.position === "GOALKEEPER"));
+                const strength = teamStrength(members.map((m) => ({ strength: playerStrength(m.player.skill, null, 0, null, 0) })));
+                return (
+                  <div key={t.id} className="card p-0">
+                    <div className="flex items-center gap-2 px-4 pt-4">
+                      <span className={`h-4 w-4 rounded-full ${TEAM_COLORS[t.color] ?? "bg-black/20"}`} />
+                      <p className="flex-1 font-extrabold uppercase tracking-wide">{t.name}</p>
+                      {finished && t.score != null && <span className="text-2xl font-black">{t.score}</span>}
+                      {isOrganizer && !finished && <Badge>força {strength}</Badge>}
+                    </div>
+                    <ul className="divide-y divide-black/5 px-4 pb-2 pt-2">
+                      {members.map((m) => (
+                        <li key={m.id} className="flex items-center gap-3 py-2">
+                          <span className="w-5 text-center">{m.player.position === "GOALKEEPER" ? "🧤" : "⚽"}</span>
+                          <Avatar name={m.player.name} photo={m.player.photo} size={30} />
+                          <span className={`flex-1 truncate font-medium ${m.playerId === me.id ? "text-pitch-700" : ""}`}>{nm(m.player)}</span>
+                          <span className="text-xs text-black/40">{POSITIONS[m.player.position].short}</span>
+                          {isOrganizer && !finished && (
+                            <form action={moveToTeam.bind(null, gid, mid, m.id)}>
+                              <AutoSubmitSelect name="teamId" defaultValue={t.id} className="rounded-lg bg-black/5 px-1.5 py-1 text-xs" options={match.teams.map((o) => ({ value: o.id, label: o.name.replace("Time ", "→ ") }))} />
+                            </form>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })}
+              {(() => {
+                const unassigned = confirmed.filter((c) => !c.teamId);
+                return unassigned.length > 0 && isOrganizer && !finished ? (
+                  <div className="card">
+                    <p className="mb-2 font-bold">Sem time ({unassigned.length})</p>
+                    {unassigned.map((m) => (
+                      <form key={m.id} action={moveToTeam.bind(null, gid, mid, m.id)} className="flex items-center gap-3 py-1.5">
+                        <span className="flex-1">{nm(m.player)}</span>
+                        <AutoSubmitSelect name="teamId" defaultValue="" className="rounded-lg bg-black/5 px-2 py-1 text-sm" options={[{ value: "", label: "Escolher time" }, ...match.teams.map((o) => ({ value: o.id, label: o.name }))]} />
+                      </form>
+                    ))}
+                  </div>
+                ) : null;
+              })()}
+              <WhatsAppButton
+                label="Enviar times no WhatsApp"
+                text={teamsText(match, tz, match.teams.map((t) => ({ name: t.name, players: match.players.filter((p) => p.teamId === t.id).map((p) => p.player) })))}
+              />
+            </>
+          )}
+        </div>
+      )}
+
+      {/* RESULTADO */}
+      {tab === "resultado" && !canceled && (
+        <div className="mt-4 flex flex-col gap-4">
+          {sp.cobrados && isOrganizer && (
+            <p className="rounded-2xl bg-pitch-50 px-4 py-3 text-sm font-medium text-pitch-800">💰 {sp.cobrados} cobrança(s) de avulso geradas no Financeiro.</p>
+          )}
+          {!finished ? (
+            <div className="card py-8 text-center">
+              <p className="text-4xl">🏁</p>
+              <p className="mt-2 font-semibold text-black/60">O resultado aparece aqui depois do jogo.</p>
+              {isOrganizer && (
+                <Link href={`${base}/resultado`} className="btn-primary mt-4">Registrar resultado</Link>
+              )}
+            </div>
+          ) : (
+            <ResultView />
+          )}
+        </div>
+      )}
+    </>
+  );
+
+  function AttendanceGroup({ title, list, numbered, startAt = 0 }: { title: string; list: NonNullable<typeof match>["players"]; numbered?: boolean; startAt?: number }) {
+    return (
+      <div>
+        <p className="section-title">{title}</p>
+        <div className="card divide-y divide-black/5 p-0">
+          {list.length === 0 && <p className="px-4 py-3 text-sm text-black/40">Ninguém ainda.</p>}
+          {list.map((mp, i) => (
+            <div key={mp.id} className="flex items-center gap-3 px-4 py-2.5">
+              {numbered && <span className="w-5 text-right text-sm font-bold text-black/35">{startAt + i + 1}</span>}
+              <Avatar name={mp.player.name} photo={mp.player.photo} size={34} />
+              <span className={`flex-1 truncate font-medium ${mp.playerId === me.id ? "text-pitch-700" : ""}`}>
+                {nm(mp.player)} {mp.player.position === "GOALKEEPER" && "🧤"}
+              </span>
+              {isOrganizer && !finished && (
+                <form action={setPlayerStatus.bind(null, gid, mid, mp.playerId)}>
+                  <AutoSubmitSelect
+                    name="status"
+                    defaultValue={mp.status}
+                    className="rounded-lg bg-black/5 px-2 py-1 text-xs font-semibold"
+                    options={(["CONFIRMED", "MAYBE", "DECLINED", "PENDING", ...(mp.status === "WAITLIST" ? ["WAITLIST"] : [])] as Attendance[]).map((s) => ({ value: s, label: ATTENDANCE_LABEL[s] }))}
+                  />
+                </form>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  function ResultView() {
+    const m = match!;
+    const played = m.players.filter((p) => p.played);
+    const scorers = played.filter((p) => p.goals > 0).sort((a, b) => b.goals - a.goals);
+    const assisters = played.filter((p) => p.assists > 0).sort((a, b) => b.assists - a.assists);
+    const myVote = m.votes.find((v) => v.voterId === me.id);
+    const tally = new Map<string, number>();
+    m.votes.forEach((v) => tally.set(v.votedId, (tally.get(v.votedId) ?? 0) + 1));
+    return (
+      <>
+        {m.teams.length >= 2 && (
+          <div className="card">
+            <div className="flex items-center justify-around text-center">
+              {m.teams.map((t, i) => (
+                <div key={t.id} className="flex items-center gap-3">
+                  {i > 0 && <span className="mr-3 text-xl font-bold text-black/25">×</span>}
+                  <div>
+                    <span className={`mx-auto mb-1 block h-3 w-3 rounded-full ${TEAM_COLORS[t.color]}`} />
+                    <p className="text-xs font-bold uppercase text-black/50">{t.name.replace("Time ", "")}</p>
+                    <p className="text-4xl font-black">{t.score ?? "-"}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {m.mvp && (
+          <div className="card flex items-center gap-4 bg-gradient-to-br from-amber-50 to-white ring-amber-200">
+            <Avatar name={m.mvp.name} photo={m.mvp.photo} size={52} />
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-amber-700">🏆 Craque da partida</p>
+              <p className="text-xl font-extrabold">{nm(m.mvp)}</p>
+            </div>
+          </div>
+        )}
+
+        {(scorers.length > 0 || assisters.length > 0) && (
+          <div className="card grid grid-cols-2 gap-4">
+            <div>
+              <p className="section-title px-0">⚽ Gols</p>
+              {scorers.map((s) => <p key={s.id} className="text-sm"><b>{s.goals}</b> {nm(s.player)}</p>)}
+              {scorers.length === 0 && <p className="text-sm text-black/40">–</p>}
+            </div>
+            <div>
+              <p className="section-title px-0">🎯 Assistências</p>
+              {assisters.map((s) => <p key={s.id} className="text-sm"><b>{s.assists}</b> {nm(s.player)}</p>)}
+              {assisters.length === 0 && <p className="text-sm text-black/40">–</p>}
+            </div>
+          </div>
+        )}
+
+        {m.votingOpen && (
+          <div className="card">
+            <p className="text-lg font-extrabold">🏆 Vote no craque da partida</p>
+            <p className="mb-3 text-sm text-black/50">{myVote ? "Voto registrado! Pode trocar até a votação fechar." : "Um voto por pessoa."} {m.votes.length} voto(s) até agora.</p>
+            <div className="grid grid-cols-2 gap-2">
+              {played.filter((p) => p.playerId !== me.id).map((p) => (
+                <form key={p.id} action={vote.bind(null, gid, mid, p.playerId)}>
+                  <SubmitButton pendingText="..." className={`btn w-full justify-start px-3 py-2 text-sm ${myVote?.votedId === p.playerId ? "bg-amber-400 text-pitch-950" : "bg-black/[0.04]"}`}>
+                    <Avatar name={p.player.name} photo={p.player.photo} size={26} />
+                    <span className="truncate">{nm(p.player)}</span>
+                  </SubmitButton>
+                </form>
+              ))}
+            </div>
+            {isOrganizer && (
+              <form action={closeVoting.bind(null, gid, mid)} className="mt-3">
+                <SubmitButton className="btn-dark w-full" pendingText="Apurando...">Encerrar votação e revelar craque</SubmitButton>
+              </form>
+            )}
+          </div>
+        )}
+
+        {played.length > 0 && (
+          <div>
+            <p className="section-title">Atuações</p>
+            <div className="card divide-y divide-black/5 p-0">
+              {[...played].sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0)).map((p) => (
+                <div key={p.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
+                  <Avatar name={p.player.name} photo={p.player.photo} size={30} />
+                  <span className="flex-1 truncate font-medium">{nm(p.player)}</span>
+                  {p.goals > 0 && <span>⚽{p.goals}</span>}
+                  {p.assists > 0 && <span>🎯{p.assists}</span>}
+                  {p.saves > 0 && <span>🧤{p.saves}</span>}
+                  {p.yellowCards > 0 && <span>🟨{p.yellowCards > 1 ? p.yellowCards : ""}</span>}
+                  {p.redCards > 0 && <span>🟥</span>}
+                  {tally.get(p.playerId) && m.votingOpen ? <Badge tone="amber">{tally.get(p.playerId)} voto(s)</Badge> : null}
+                  {p.rating != null && <Badge tone="dark">{fmtRating(p.rating)}</Badge>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <WhatsAppButton
+          label="Enviar resultado no WhatsApp"
+          text={resultText(m, tz, m.teams, scorers.map((s) => ({ p: s.player, goals: s.goals })), m.mvp)}
+        />
+        {isOrganizer && (
+          <div className="grid grid-cols-2 gap-2">
+            <Link href={`${base}/resultado`} className="btn-ghost btn-sm">Editar resultado</Link>
+            {!m.votingOpen && (
+              <form action={reopenVoting.bind(null, gid, mid)}>
+                <SubmitButton className="btn-ghost btn-sm w-full">Reabrir votação</SubmitButton>
+              </form>
+            )}
+          </div>
+        )}
+      </>
+    );
+  }
+}
