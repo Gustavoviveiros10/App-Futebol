@@ -9,7 +9,8 @@ import { startTrial } from "../actions";
 
 export const metadata = { title: "Planos" };
 
-export default async function Plans() {
+export default async function Plans({ searchParams }: { searchParams: Promise<{ novo?: string }> }) {
+  const { novo } = await searchParams;
   const user = await requireUser();
   const { sub, plan } = await getUserPlan(user.id);
   const now = new Date();
@@ -18,7 +19,7 @@ export default async function Plans() {
 
   return (
     <div className="mx-auto max-w-md px-4 pb-12">
-      <PageHeader title="Planos" back="/app?todas=1" subtitle={trialing ? `Teste grátis até ${fmtDate(sub!.currentPeriodEnd!)}` : `Você está no ${PLANS[plan].name}`} />
+      <PageHeader title={novo ? "Escolha seu plano" : "Planos"} back="/app?todas=1" subtitle={trialing ? `Teste grátis até ${fmtDate(sub!.currentPeriodEnd!)}` : novo ? "Último passo para criar sua pelada" : `Você está no ${PLANS[plan].name}`} />
 
       <div className="flex flex-col gap-3">
         {(["PRO", "PREMIUM", "FREE"] as const).map((k) => {

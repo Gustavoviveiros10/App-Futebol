@@ -39,12 +39,12 @@ export default async function Home() {
             Presença, lista de espera, sorteio de times, financeiro e estatísticas da sua pelada. Tudo no celular, sem grupo bagunçado e sem planilha.
           </p>
           <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-            <Link href="/cadastro" className="btn-primary px-6 py-4 text-base">
-              Criar conta grátis <ArrowRight size={18} />
+            <Link href="/cadastro?perfil=organizador" className="btn-primary px-6 py-4 text-base">
+              Sou organizador <ArrowRight size={18} />
             </Link>
-            <Link href="/login" className="btn-ghost px-6 py-4 text-base">Já tenho conta</Link>
+            <Link href="/cadastro" className="btn-ghost px-6 py-4 text-base">Sou jogador</Link>
           </div>
-          <p className="mt-4 text-sm text-fg/40">Jogador usa de graça. Organizador tem {TRIAL_DAYS} dias de Pro grátis, sem cartão.</p>
+          <p className="mt-4 text-sm text-fg/40">Jogador usa de graça. Organizador assina o Pro, com {TRIAL_DAYS} dias grátis e sem cartão. Já tem conta? <Link href="/login" className="font-semibold text-fg/70 underline-offset-4 hover:underline">Entrar</Link></p>
         </div>
       </section>
 
@@ -82,8 +82,8 @@ export default async function Home() {
                   </li>
                 ))}
               </ul>
-              <Link href="/cadastro" className={`${k === "PRO" ? "btn-primary" : "btn-ghost"} mt-6`}>
-                {k === "FREE" ? "Criar conta" : `Testar ${TRIAL_DAYS} dias grátis`}
+              <Link href={k === "FREE" ? "/cadastro" : "/cadastro?perfil=organizador"} className={`${k === "PRO" ? "btn-primary" : "btn-ghost"} mt-6`}>
+                {k === "FREE" ? "Criar conta de jogador" : `Testar ${TRIAL_DAYS} dias grátis`}
               </Link>
             </div>
           ))}
