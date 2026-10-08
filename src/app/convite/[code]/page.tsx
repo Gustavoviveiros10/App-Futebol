@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
-import { Logo } from "@/components/Logo";
+import { LogoFull } from "@/components/Logo";
 import { WEEKDAYS } from "@/lib/format";
 import { Avatar } from "@/components/ui";
 import { SubmitButton } from "@/components/forms";
@@ -25,7 +25,7 @@ export default async function InvitePage({ params }: { params: Promise<{ code: s
   return (
     <div className="min-h-dvh">
       <div className="pitch-gradient px-6 pb-20 pt-6 text-center text-white">
-        <div className="flex justify-center"><Logo /></div>
+        <div className="flex justify-center"><LogoFull width={150} /></div>
         <p className="mt-6 text-sm text-white/70">Você foi convidado para</p>
         <h1 className="mt-1 text-5xl">{group.name}</h1>
         <p className="mt-2 text-sm text-white/70">
