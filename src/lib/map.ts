@@ -29,3 +29,32 @@ export function fmtKm(d: number) {
 export function directionsUrl(lat: number, lng: number) {
   return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
 }
+
+export type Court = { name: string; address: string; lat: number; lng: number; source: "jogus" | "osm" };
+
+const OVERPASS = "https://overpass-api.de/api/interpreter";
+
+/** Quadras de futebol do OpenStreetMap (campos, society, futsal e centros esportivos), por nome e/ou perto de um ponto. */
+export async function searchOsmCourts({ name, near, radiusKm = 30 }: { name?: string; near: { lat: number; lng: number }; radiusKm?: number }): Promise<Court[]> {
+  const nm = name?.trim() ? `["name"~"${name.trim().replace(/[\\"^$.*+?()[\]{}|]/g, "").slice(0, 40)}",i]` : `["name"]`;
+  const around = `(around:${Math.round(radiusKm * 1000)},${near.lat},${near.lng})`;
+  const query = `[out:json][timeout:20];(
+nwr["leisure"="pitch"]["sport"~"soccer|futsal|society|football",i]${nm}${around};
+nwr["leisure"~"sports_centre|stadium|sports_hall"]${nm}${around};
+);out center tags 40;`;
+  const res = await fetch(OVERPASS, { method: "POST", body: new URLSearchParams({ data: query }) });
+  if (!res.ok) throw new Error("busca indisponível");
+  const data: { elements: { lat?: number; lon?: number; center?: { lat: number; lon: number }; tags?: Record<string, string> }[] } = await res.json();
+  const seen = new Set<string>();
+  return data.elements
+    .map((e): Court | null => {
+      const t = e.tags ?? {};
+      const lat = e.lat ?? e.center?.lat, lng = e.lon ?? e.center?.lon;
+      const street = [t["addr:street"], t["addr:housenumber"]].filter(Boolean).join(", ");
+      const address = [street, t["addr:suburb"], t["addr:city"]].filter(Boolean).join(" - ");
+      return lat != null && lng != null && t.name ? { name: t.name, address, lat, lng, source: "osm" } : null;
+    })
+    .filter((c): c is Court => !!c && !seen.has(c.name.toLowerCase()) && !!seen.add(c.name.toLowerCase()))
+    .sort((a, b) => km(near, a) - km(near, b))
+    .slice(0, 8);
+}
