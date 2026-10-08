@@ -7,7 +7,7 @@ import type { Attendance } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireMember, requireOrganizer } from "@/lib/tenancy";
 import { fmtTime, parseMoney, weekdayLong, zonedToUtc } from "@/lib/format";
-import { matchSchema } from "@/lib/matches";
+import { START_EARLY_MIN, canStart, matchSchema } from "@/lib/matches";
 import { formObject, newInviteCode } from "@/lib/validation";
 import { type ActionState, zodError } from "@/lib/actions";
 import { fillOpenSpots, setAttendance } from "@/lib/attendance";
@@ -329,4 +329,36 @@ export async function ratePlayers(gid: string, mid: string, _: ActionState, form
   );
   refresh(gid);
   redirect(`/p/${gid}/partidas/${mid}?aba=resultado&avaliado=${rows.length}`);
+}
+
+/** Libera 10 minutos antes do horário e abre o controle da partida. */
+export async function startMatch(gid: string, mid: string) {
+  await requireOrganizer(gid);
+  const match = await getMatch(gid, mid);
+  if (match.status === "CANCELED" || match.status === "FINISHED") throw new Error("Essa partida já terminou.");
+  if (!canStart(match.date)) throw new Error(`Dá para iniciar a partir de ${START_EARLY_MIN} minutos antes do horário.`);
+  if (!match.startedAt) await db.match.update({ where: { id: mid }, data: { startedAt: new Date() } });
+  refresh(gid);
+  redirect(`/p/${gid}/partidas/${mid}/controle`);
+}
+
+const liveSchema = z.array(z.object({ teamId: z.string(), score: z.number().int().min(0).max(99).optional(), w: z.number().int().min(0).max(99).optional(), d: z.number().int().min(0).max(99).optional(), l: z.number().int().min(0).max(99).optional() })).max(6);
+
+/** Salva o placar (2 times) ou a tabela do rodízio que veio do controle. */
+export async function saveLive(gid: string, mid: string, rows: z.infer<typeof liveSchema>) {
+  await requireOrganizer(gid);
+  const match = await getMatch(gid, mid);
+  const data = liveSchema.parse(rows);
+  const teams = await db.team.findMany({ where: { matchId: mid }, select: { id: true } });
+  const ids = new Set(teams.map((t) => t.id));
+  await db.$transaction(
+    data.filter((r) => ids.has(r.teamId)).map((r) =>
+      db.team.update({
+        where: { id: r.teamId },
+        data: match.format === "ROTATION" ? { wins: r.w ?? 0, draws: r.d ?? 0, losses: r.l ?? 0 } : { score: r.score ?? 0 },
+      }),
+    ),
+  );
+  refresh(gid);
+  redirect(`/p/${gid}/partidas/${mid}/resultado?ao_vivo=1`);
 }

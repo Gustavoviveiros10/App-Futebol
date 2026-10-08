@@ -5,7 +5,10 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { PLANS, TRIAL_DAYS } from "@/lib/plans";
 import { getUserPlan } from "@/lib/subscription";
-import { money } from "@/lib/format";
+import { fmtTime, money } from "@/lib/format";
+import { START_EARLY_MIN } from "@/lib/matches";
+import { StartMatchButton } from "@/components/StartMatchButton";
+import { startMatch } from "../p/[gid]/partidas/actions";
 import { ActionForm, SubmitButton } from "@/components/forms";
 import { Logo, LogoMark } from "@/components/Logo";
 import { signOut } from "../(auth)/actions";
@@ -19,7 +22,15 @@ export default async function MyGroups({ searchParams }: { searchParams: Promise
   const [memberships, { plan, canCreate, owned }] = await Promise.all([
     db.player.findMany({
       where: { userId: user.id, active: true },
-      include: { group: { include: { _count: { select: { players: { where: { active: true } } } } } } },
+      include: {
+        group: {
+          include: {
+            _count: { select: { players: { where: { active: true } } } },
+            // partida das próximas 24 h, para o botão "Iniciar partida"
+            matches: { where: { status: { in: ["SCHEDULED", "CLOSED", "DRAWN"] }, date: { lte: new Date(Date.now() + 86400_000) } }, orderBy: { date: "asc" }, take: 1 },
+          },
+        },
+      },
       orderBy: { createdAt: "asc" },
     }),
     getUserPlan(user.id),
@@ -44,7 +55,8 @@ export default async function MyGroups({ searchParams }: { searchParams: Promise
       {memberships.length > 0 && (
         <div className="mt-6 flex flex-col gap-2">
           {memberships.map((m) => (
-            <Link key={m.id} href={`/p/${m.groupId}`} className="card flex items-center gap-4 transition hover:bg-surface-2">
+            <div key={m.id} className="flex flex-col gap-2">
+            <Link href={`/p/${m.groupId}`} className="card flex items-center gap-4 transition hover:bg-surface-2">
               <div className="pitch-gradient flex h-12 w-12 shrink-0 items-center justify-center rounded-xl">
                 <span className="font-display text-xl font-bold text-accent">{m.group.name.slice(0, 1).toUpperCase()}</span>
               </div>
@@ -56,6 +68,16 @@ export default async function MyGroups({ searchParams }: { searchParams: Promise
               </div>
               <ChevronRight className="text-fg/25" />
             </Link>
+            {m.role === "ORGANIZER" && m.group.matches[0] && (
+              <StartMatchButton
+                startsAt={m.group.matches[0].date.toISOString()}
+                unlockLabel={fmtTime(new Date(m.group.matches[0].date.getTime() - START_EARLY_MIN * 60_000), m.group.timezone)}
+                started={!!m.group.matches[0].startedAt}
+                controlHref={`/p/${m.groupId}/partidas/${m.group.matches[0].id}/controle`}
+                action={startMatch.bind(null, m.groupId, m.group.matches[0].id)}
+              />
+            )}
+            </div>
           ))}
         </div>
       )}

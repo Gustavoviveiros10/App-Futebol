@@ -38,3 +38,10 @@ export const MATCH_STATUS_LABEL = {
   FINISHED: { label: "Encerrada", tone: "gray" },
   CANCELED: { label: "Cancelada", tone: "red" },
 } as const;
+
+/** O botão "Iniciar partida" libera esse tanto de minutos antes do horário. */
+export const START_EARLY_MIN = 10;
+
+export function canStart(date: Date, now = new Date()) {
+  return now.getTime() >= date.getTime() - START_EARLY_MIN * 60_000;
+}

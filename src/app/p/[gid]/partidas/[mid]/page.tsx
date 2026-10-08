@@ -4,11 +4,13 @@ import { Bell, Check, Clock, Flag, HelpCircle, Lock, MapPin, Pencil, Scale, Shuf
 import type { Attendance } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getMembership } from "@/lib/tenancy";
-import { POSITIONS, fmtDayMonth, fmtTimeRange, money, weekdayLong } from "@/lib/format";
+import { POSITIONS, fmtDayMonth, fmtTime, fmtTimeRange, money, weekdayLong } from "@/lib/format";
 import { peerSummaries } from "@/lib/ratings";
 import { LOW_CONDUCT, StarBadge, Stars } from "@/components/Stars";
 import { ACCESS, FORMATS } from "@/lib/labels";
-import { MATCH_STATUS_LABEL } from "@/lib/matches";
+import { MATCH_STATUS_LABEL, START_EARLY_MIN } from "@/lib/matches";
+import { StartMatchButton } from "@/components/StartMatchButton";
+import { TEAM_DOT } from "@/lib/teams";
 import { ATTENDANCE_LABEL } from "@/lib/attendance";
 import { inviteToMatchText, listText, reminderText, resultText, teamsText } from "@/lib/share";
 import { playerStrength, teamStrength } from "@/lib/draw";
@@ -16,16 +18,9 @@ import { Avatar, Badge } from "@/components/ui";
 import { SubmitButton } from "@/components/forms";
 import { WhatsAppButton } from "@/components/WhatsAppButton";
 import { AutoSubmitSelect } from "@/components/AutoSubmitSelect";
-import { closeVoting, drawTeams, moveToTeam, remindPending, reopenVoting, respond, setListOpen, setPlayerStatus, vote } from "../actions";
+import { closeVoting, drawTeams, moveToTeam, remindPending, reopenVoting, respond, startMatch, setListOpen, setPlayerStatus, vote } from "../actions";
 
-const TEAM_COLORS: Record<string, string> = {
-  blue: "bg-sky-500",
-  yellow: "bg-gold",
-  red: "bg-rose-500",
-  green: "bg-pitch-500",
-  black: "bg-neutral-950 ring-1 ring-white/30",
-  white: "bg-white",
-};
+const TEAM_COLORS = TEAM_DOT;
 
 type Tab = "presenca" | "times" | "resultado";
 
@@ -108,6 +103,12 @@ export default async function MatchPage({ params, searchParams }: { params: Prom
           <p className="font-bold">Partida criada</p>
           <p className="mb-3 text-sm text-fg/55">Agora mande o link no grupo para a galera confirmar.</p>
           <WhatsAppButton text={inviteToMatchText(match, tz, confirmed.length, match.maxPlayers)} label="Enviar convite no WhatsApp" />
+        </div>
+      )}
+
+      {isOrganizer && !finished && !canceled && (
+        <div className="mt-4">
+          <StartMatchButton startsAt={match.date.toISOString()} unlockLabel={fmtTime(new Date(match.date.getTime() - START_EARLY_MIN * 60_000), tz)} started={!!match.startedAt} controlHref={`${base}/controle`} action={startMatch.bind(null, gid, mid)} />
         </div>
       )}
 

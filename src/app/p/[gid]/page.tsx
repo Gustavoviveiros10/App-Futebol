@@ -10,7 +10,9 @@ import { inviteToMatchText } from "@/lib/share";
 import { Avatar } from "@/components/ui";
 import { SubmitButton } from "@/components/forms";
 import { WhatsAppButton } from "@/components/WhatsAppButton";
-import { respond } from "./partidas/actions";
+import { respond, startMatch } from "./partidas/actions";
+import { START_EARLY_MIN } from "@/lib/matches";
+import { StartMatchButton } from "@/components/StartMatchButton";
 
 export default async function Dashboard({ params }: { params: Promise<{ gid: string }> }) {
   const { gid } = await params;
@@ -116,8 +118,13 @@ export default async function Dashboard({ params }: { params: Promise<{ gid: str
               <ArrowRight size={16} />
             </Link>
           )}
+          {isOrganizer && (
+            <div className="px-3 pt-3">
+              <StartMatchButton startsAt={next.date.toISOString()} unlockLabel={fmtTime(new Date(next.date.getTime() - START_EARLY_MIN * 60_000), tz)} started={!!next.startedAt} controlHref={`/p/${gid}/partidas/${next.id}/controle`} action={startMatch.bind(null, gid, next.id)} />
+            </div>
+          )}
           {isOrganizer && next.status === "SCHEDULED" && (
-            <div className="px-3 pb-3">
+            <div className="px-3 pb-3 pt-2">
               <WhatsAppButton className="btn-whatsapp btn-sm w-full" label="Chamar a galera no WhatsApp" text={inviteToMatchText(next, tz, count(["CONFIRMED"]), next.maxPlayers)} />
             </div>
           )}
