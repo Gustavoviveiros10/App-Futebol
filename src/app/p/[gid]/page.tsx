@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowRight, CalendarDays, Check, MapPin, Trophy } from "lucide-react";
 import { db } from "@/lib/db";
 import { getMembership } from "@/lib/tenancy";
-import { fmtDayMonth, fmtTime, money, monthKey, monthLabel, weekdayLong } from "@/lib/format";
+import { fmtDayMonth, fmtTime, fmtTimeRange, money, scoreLine, monthKey, monthLabel, weekdayLong } from "@/lib/format";
 import { financeSummary, paymentView } from "@/lib/finance";
 import { groupStats } from "@/lib/stats";
 import { inviteText } from "@/lib/invite";
@@ -73,7 +73,8 @@ export default async function Dashboard({ params }: { params: Promise<{ gid: str
         <div className="pitch-gradient overflow-hidden rounded-2xl text-white">
           <Link href={`/p/${gid}/partidas/${next.id}`} className="block p-5 pb-4">
             <p className="text-xs font-bold uppercase tracking-widest text-accent">Próxima pelada</p>
-            <p className="mt-1 text-3xl font-black tracking-tight">{weekdayLong(next.date, tz)} — {fmtTime(next.date, tz)}</p>
+            <p className="mt-1 text-3xl font-black tracking-tight">{weekdayLong(next.date, tz)}</p>
+            <p className="text-lg font-bold text-white/85">{fmtTimeRange(next.date, next.durationMin, tz)}</p>
             <p className="text-sm text-white/65">
               {fmtDayMonth(next.date, tz)}
               {next.location && <><MapPin size={13} className="mb-0.5 ml-2 mr-0.5 inline" />{next.location}</>}
@@ -139,7 +140,7 @@ export default async function Dashboard({ params }: { params: Promise<{ gid: str
         <Link href={`/p/${gid}/partidas/${last.id}?aba=resultado`} className="card block">
           <p className="section-title px-0">Último resultado · {fmtDayMonth(last.date, tz)}</p>
           {last.teams.length >= 2 ? (
-            <p className="text-xl font-extrabold">{last.teams.map((t) => `${t.name.replace("Time ", "")} ${t.score ?? "-"}`).join("  ×  ")}</p>
+            <p className="text-xl font-extrabold">{scoreLine(last.teams, last.format === "ROTATION")}</p>
           ) : (
             <p className="font-semibold text-fg/60">Partida encerrada</p>
           )}

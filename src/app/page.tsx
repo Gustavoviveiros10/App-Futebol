@@ -31,9 +31,11 @@ export default async function Home() {
             <span className="h-1.5 w-1.5 rounded-full bg-accent" /> Gestão de pelada semanal
           </p>
           <h1 className="mt-5 text-[3.4rem] leading-[0.92] sm:text-8xl">
-            Você organiza.
+            Sua partida,
             <br />
-            <span className="text-accent">O app cuida do resto.</span>
+            organizada
+            <br />
+            <span className="text-accent">de gol a gol.</span>
           </h1>
           <p className="mt-6 max-w-xl text-lg leading-relaxed text-fg/60">
             Presença, lista de espera, sorteio de times, financeiro e estatísticas da sua pelada. Tudo no celular, sem grupo bagunçado e sem planilha.

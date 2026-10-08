@@ -1,16 +1,19 @@
 import { z } from "zod";
-import { DEFAULT_TZ, utcToZonedInput, zonedToUtc } from "./format";
+import { DEFAULT_TZ, minutesBetween, utcToZonedInput, zonedToUtc } from "./format";
 
 export const matchSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida."),
   time: z.string().regex(/^\d{2}:\d{2}$/, "Horário inválido."),
   location: z.string().trim().max(120).optional(),
-  durationMin: z.coerce.number().int().min(10).max(600).default(60),
+  endTime: z.string().regex(/^\d{2}:\d{2}$/, "Horário de término inválido."),
+  format: z.enum(["TWO_TEAMS", "ROTATION"]).default("TWO_TEAMS"),
+  access: z.enum(["RESTRICTED", "APPROVAL", "OPEN"]).default("RESTRICTED"),
   singleFee: z.string().optional(),
   maxPlayers: z.coerce.number().int().min(2).max(100).optional(),
   teamsCount: z.coerce.number().int().min(2).max(6).default(2),
   notes: z.string().trim().max(500).optional(),
-});
+}).transform((d) => ({ ...d, durationMin: minutesBetween(d.time, d.endTime) }))
+  .refine((d) => d.durationMin >= 10 && d.durationMin <= 600, { message: "A partida precisa ter entre 10 minutos e 10 horas.", path: ["endTime"] });
 
 /** Próxima ocorrência do dia/horário fixo da pelada. */
 export function nextOccurrence(weekday: number | null, time: string | null, tz = DEFAULT_TZ) {

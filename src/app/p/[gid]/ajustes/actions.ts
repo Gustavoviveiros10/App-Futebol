@@ -6,7 +6,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireMember, requireOrganizer } from "@/lib/tenancy";
 import { parseMoney } from "@/lib/format";
-import { formObject, groupSchema, newInviteCode } from "@/lib/validation";
+import { formObject, groupDuration, groupSchema, newInviteCode } from "@/lib/validation";
 import { type ActionState, zodError } from "@/lib/actions";
 
 export async function updateGroup(gid: string, _: ActionState, form: FormData): Promise<ActionState> {
@@ -23,6 +23,11 @@ export async function updateGroup(gid: string, _: ActionState, form: FormData): 
       time: d.time ?? null,
       maxPlayers: d.maxPlayers ?? null,
       teamsCount: d.teamsCount,
+      durationMin: groupDuration(d),
+      format: d.format,
+      access: d.access,
+      modality: d.modality,
+      level: d.level,
       monthlyFeeCents: parseMoney(d.monthlyFee),
       singleFeeCents: parseMoney(d.singleFee),
       paymentDueDay: d.paymentDueDay ?? 10,

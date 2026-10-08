@@ -4,7 +4,8 @@ import { Bell, Check, Clock, Flag, HelpCircle, Lock, MapPin, Pencil, Scale, Shuf
 import type { Attendance } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getMembership } from "@/lib/tenancy";
-import { POSITIONS, fmtDayMonth, fmtRating, fmtTime, money, weekdayLong } from "@/lib/format";
+import { POSITIONS, fmtDayMonth, fmtRating, fmtTime, fmtTimeRange, money, weekdayLong } from "@/lib/format";
+import { ACCESS, FORMATS } from "@/lib/labels";
 import { MATCH_STATUS_LABEL } from "@/lib/matches";
 import { ATTENDANCE_LABEL } from "@/lib/attendance";
 import { inviteToMatchText, listText, reminderText, resultText, teamsText } from "@/lib/share";
@@ -70,10 +71,12 @@ export default async function MatchPage({ params, searchParams }: { params: Prom
           )}
         </div>
         <p className="mt-3 text-sm font-semibold uppercase tracking-wider text-accent">{weekdayLong(match.date, tz)}, {fmtDayMonth(match.date, tz)}</p>
-        <p className="text-4xl font-black tracking-tight">{fmtTime(match.date, tz)}</p>
+        <p className="text-4xl font-black tracking-tight">{fmtTimeRange(match.date, match.durationMin, tz)}</p>
         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-white/70">
           {match.location && <span className="flex items-center gap-1"><MapPin size={14} /> {match.location}</span>}
           <span className="flex items-center gap-1"><Clock size={14} /> {match.durationMin} min</span>
+          <span>{FORMATS[match.format].label}</span>
+          <span>{ACCESS[match.access].label}</span>
           {match.singleFeeCents > 0 && <span>Avulso {money(match.singleFeeCents)}</span>}
         </div>
         <div className="mt-4 flex items-center gap-2">

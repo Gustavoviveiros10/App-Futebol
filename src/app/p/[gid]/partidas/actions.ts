@@ -8,7 +8,7 @@ import { db } from "@/lib/db";
 import { requireMember, requireOrganizer } from "@/lib/tenancy";
 import { fmtTime, parseMoney, weekdayLong, zonedToUtc } from "@/lib/format";
 import { matchSchema } from "@/lib/matches";
-import { formObject } from "@/lib/validation";
+import { formObject, newInviteCode } from "@/lib/validation";
 import { type ActionState, zodError } from "@/lib/actions";
 import { fillOpenSpots, setAttendance } from "@/lib/attendance";
 import { notifyGroup, notifyPlayers } from "@/lib/notify";
@@ -49,6 +49,9 @@ export async function createMatch(gid: string, _: ActionState, form: FormData): 
       maxPlayers: d.maxPlayers ?? null,
       teamsCount: d.teamsCount,
       notes: d.notes,
+      format: d.format,
+      access: d.access,
+      shareCode: newInviteCode(),
       players: { create: players.map((p) => ({ playerId: p.id })) },
     },
   });
@@ -83,6 +86,8 @@ export async function updateMatch(gid: string, mid: string, _: ActionState, form
         maxPlayers: d.maxPlayers ?? null,
         teamsCount: d.teamsCount,
         notes: d.notes ?? null,
+        format: d.format,
+        access: d.access,
       },
     });
     // se o limite aumentou, a lista de espera sobe

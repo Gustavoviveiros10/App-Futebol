@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { MapPin, Trophy } from "lucide-react";
-import { fmtDayMonth, fmtTime, weekdayLong } from "@/lib/format";
+import { fmtDayMonth, fmtTimeRange, scoreLine, weekdayLong } from "@/lib/format";
 import { MATCH_STATUS_LABEL } from "@/lib/matches";
 import { Badge } from "./ui";
 
@@ -12,11 +12,13 @@ type Props = {
   tz: string;
   confirmed: number;
   max: number | null;
-  teams?: { name: string; score: number | null; color: string }[];
+  teams?: { name: string; score: number | null; color: string; wins?: number; draws?: number }[];
+  durationMin?: number;
+  rotation?: boolean;
   mvp?: string | null;
 };
 
-export function MatchCard({ href, date, location, status, tz, confirmed, max, teams, mvp }: Props) {
+export function MatchCard({ href, date, location, status, tz, confirmed, max, teams, mvp, durationMin = 60, rotation = false }: Props) {
   const st = MATCH_STATUS_LABEL[status];
   return (
     <Link href={href} className="card flex items-center gap-4 transition hover:ring-accent/40">
@@ -27,9 +29,9 @@ export function MatchCard({ href, date, location, status, tz, confirmed, max, te
       </div>
       <div className="min-w-0 flex-1">
         {status === "FINISHED" && teams && teams.length >= 2 ? (
-          <p className="truncate font-bold">{teams.map((t) => `${t.name.replace("Time ", "")} ${t.score ?? "-"}`).join(" × ")}</p>
+          <p className="truncate font-bold">{scoreLine(teams, rotation)}</p>
         ) : (
-          <p className="font-bold">{fmtTime(date, tz)}</p>
+          <p className="font-bold">{fmtTimeRange(date, durationMin, tz)}</p>
         )}
         {location && (
           <p className="flex items-center gap-1 truncate text-sm text-fg/50">

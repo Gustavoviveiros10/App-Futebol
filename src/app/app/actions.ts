@@ -7,7 +7,7 @@ import { parseMoney } from "@/lib/format";
 import { PLANS, TRIAL_DAYS } from "@/lib/plans";
 import { getUserPlan } from "@/lib/subscription";
 import { type ActionState, zodError } from "@/lib/actions";
-import { formObject, groupSchema, newInviteCode } from "@/lib/validation";
+import { formObject, groupDuration, groupSchema, newInviteCode } from "@/lib/validation";
 
 export async function createGroup(_: ActionState, form: FormData): Promise<ActionState> {
   const user = await requireUser();
@@ -26,6 +26,11 @@ export async function createGroup(_: ActionState, form: FormData): Promise<Actio
       time: d.time ?? null,
       maxPlayers: d.maxPlayers,
       teamsCount: d.teamsCount,
+      durationMin: groupDuration(d),
+      format: d.format,
+      access: d.access,
+      modality: d.modality,
+      level: d.level,
       monthlyFeeCents: parseMoney(d.monthlyFee),
       singleFeeCents: parseMoney(d.singleFee),
       inviteCode: newInviteCode(),

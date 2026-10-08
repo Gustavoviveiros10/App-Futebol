@@ -31,6 +31,8 @@ export default async function Matches({ params }: { params: Promise<{ gid: strin
       confirmed={m._count.players}
       max={m.maxPlayers}
       teams={m.teams}
+      durationMin={m.durationMin}
+      rotation={m.format === "ROTATION"}
       mvp={m.mvp ? m.mvp.nickname || m.mvp.name : null}
     />
   );

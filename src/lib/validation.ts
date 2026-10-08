@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
+import { minutesBetween } from "./format";
 
 export function newInviteCode() {
   return randomBytes(6).toString("base64url");
@@ -20,4 +21,14 @@ export const groupSchema = z.object({
   monthlyFee: z.string().optional(),
   singleFee: z.string().optional(),
   paymentDueDay: z.coerce.number().int().min(1).max(28).optional(),
+  endTime: z.string().regex(/^\d{2}:\d{2}$/, "Horário de término inválido.").optional(),
+  format: z.enum(["TWO_TEAMS", "ROTATION"]).default("TWO_TEAMS"),
+  access: z.enum(["RESTRICTED", "APPROVAL", "OPEN"]).default("RESTRICTED"),
+  modality: z.enum(["SOCIETY", "FUTSAL", "FIELD"]).default("SOCIETY"),
+  level: z.enum(["BEGINNER", "INTERMEDIATE", "ADVANCED"]).default("INTERMEDIATE"),
 });
+
+/** Duração em minutos a partir de início/término do formulário da pelada. */
+export function groupDuration(d: { time?: string; endTime?: string }) {
+  return d.time && d.endTime ? minutesBetween(d.time, d.endTime) : undefined;
+}
