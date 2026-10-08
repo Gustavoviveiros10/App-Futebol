@@ -7,6 +7,7 @@ import { financeSummary, paymentView } from "@/lib/finance";
 import { groupStats } from "@/lib/stats";
 import { inviteText } from "@/lib/invite";
 import { inviteToMatchText } from "@/lib/share";
+import { ensureShareCode } from "@/lib/guest";
 import { Avatar } from "@/components/ui";
 import { SubmitButton } from "@/components/forms";
 import { WhatsAppButton } from "@/components/WhatsAppButton";
@@ -19,7 +20,7 @@ export default async function Dashboard({ params }: { params: Promise<{ gid: str
   const { group, isOrganizer, player: me, user } = await getMembership(gid);
   const tz = group.timezone;
 
-  const [next, last, playerCount, matchCount, seasonStats] = await Promise.all([
+  const [nextRaw, last, playerCount, matchCount, seasonStats] = await Promise.all([
     db.match.findFirst({
       where: { groupId: gid, status: { in: ["SCHEDULED", "CLOSED", "DRAWN"] } },
       orderBy: { date: "asc" },
@@ -35,6 +36,7 @@ export default async function Dashboard({ params }: { params: Promise<{ gid: str
     groupStats(gid, "temporada"),
   ]);
 
+  const next = nextRaw && isOrganizer ? await ensureShareCode(nextRaw) : nextRaw;
   const count = (s: string[]) => next?.players.filter((p) => s.includes(p.status)).length ?? 0;
   const mine = next?.players.find((p) => p.playerId === me.id);
   const topScorer = [...seasonStats].sort((a, b) => b.goals - a.goals)[0];

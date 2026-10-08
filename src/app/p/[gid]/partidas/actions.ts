@@ -366,3 +366,18 @@ export async function saveLive(gid: string, mid: string, rows: z.infer<typeof li
   refresh(gid);
   redirect(`/p/${gid}/partidas/${mid}/resultado?ao_vivo=1`);
 }
+
+/** Pedido de vaga (link público ou busca "Quero jogar"): aprovar cria o jogador e confirma. */
+export async function answerJoinRequest(gid: string, mid: string, rid: string, approve: boolean) {
+  await requireOrganizer(gid);
+  const req = await db.joinRequest.findFirst({ where: { id: rid, matchId: mid, status: "PENDING", match: { groupId: gid } } });
+  if (!req) throw new Error("Pedido não encontrado.");
+  if (!approve) {
+    await db.joinRequest.update({ where: { id: rid }, data: { status: "REJECTED" } });
+  } else {
+    const player = await db.player.create({ data: { groupId: gid, name: req.name, phone: req.phone, billingType: "PER_MATCH" } });
+    await setAttendance(mid, player.id, "CONFIRMED");
+    await db.joinRequest.update({ where: { id: rid }, data: { status: "APPROVED", playerId: player.id } });
+  }
+  refresh(gid);
+}

@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { getMembership } from "@/lib/tenancy";
 import { POSITIONS, fmtDayMonth, fmtTime, fmtTimeRange, money, scoreLine, weekdayLong } from "@/lib/format";
 import { peerSummaries } from "@/lib/ratings";
+import { ensureShareCode } from "@/lib/guest";
 import { LOW_CONDUCT, StarBadge, Stars } from "@/components/Stars";
 import { ACCESS, FORMATS } from "@/lib/labels";
 import { MATCH_STATUS_LABEL, START_EARLY_MIN } from "@/lib/matches";
@@ -18,7 +19,7 @@ import { Avatar, Badge } from "@/components/ui";
 import { SubmitButton } from "@/components/forms";
 import { WhatsAppButton } from "@/components/WhatsAppButton";
 import { AutoSubmitSelect } from "@/components/AutoSubmitSelect";
-import { closeVoting, drawTeams, moveToTeam, remindPending, reopenVoting, respond, startMatch, setListOpen, setPlayerStatus, vote } from "../actions";
+import { answerJoinRequest, closeVoting, drawTeams, moveToTeam, remindPending, reopenVoting, respond, startMatch, setListOpen, setPlayerStatus, vote } from "../actions";
 
 const TEAM_COLORS = TEAM_DOT;
 
@@ -28,16 +29,18 @@ export default async function MatchPage({ params, searchParams }: { params: Prom
   const { gid, mid } = await params;
   const sp = await searchParams;
   const { group, isOrganizer, player: me } = await getMembership(gid);
-  const match = await db.match.findFirst({
+  const found = await db.match.findFirst({
     where: { id: mid, groupId: gid },
     include: {
       teams: { orderBy: { order: "asc" } },
       players: { include: { player: true }, orderBy: [{ queuedAt: "asc" }, { player: { name: "asc" } }] },
       votes: true,
       mvp: true,
+      requests: { where: { status: "PENDING" }, orderBy: { createdAt: "asc" } },
     },
   });
-  if (!match) notFound();
+  if (!found) notFound();
+  const match = isOrganizer ? await ensureShareCode(found) : found;
   const tz = group.timezone;
   // estrelas de cada jogador, só para quem organiza
   const peer = isOrganizer ? await peerSummaries(match.players.map((p) => p.playerId)) : null;
@@ -179,6 +182,28 @@ export default async function MatchPage({ params, searchParams }: { params: Prom
             </div>
           )}
 
+          {isOrganizer && match.requests.length > 0 && (
+            <div>
+              <p className="section-title">Pedidos de vaga ({match.requests.length})</p>
+              <div className="card divide-y divide-fg/[0.07] p-0">
+                {match.requests.map((r) => (
+                  <div key={r.id} className="flex items-center gap-3 px-4 py-2.5">
+                    <Avatar name={r.name} size={34} />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium">{r.name}</p>
+                      {r.phone && <p className="text-xs text-fg/45">{r.phone}</p>}
+                    </div>
+                    <form action={answerJoinRequest.bind(null, gid, mid, r.id, false)}>
+                      <SubmitButton className="btn-ghost btn-sm" pendingText="...">Recusar</SubmitButton>
+                    </form>
+                    <form action={answerJoinRequest.bind(null, gid, mid, r.id, true)}>
+                      <SubmitButton className="btn-primary btn-sm" pendingText="...">Aprovar</SubmitButton>
+                    </form>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <AttendanceGroup title={`Confirmados (${confirmed.length}${match.maxPlayers ? `/${match.maxPlayers}` : ""})`} list={confirmed} numbered />
           {waitlist.length > 0 && <AttendanceGroup title={`Lista de espera (${waitlist.length})`} list={waitlist} numbered startAt={match.maxPlayers ?? confirmed.length} />}
           {maybe.length > 0 && <AttendanceGroup title={`Ainda não sabem (${maybe.length})`} list={maybe} />}

@@ -1,12 +1,13 @@
 import { scoreLine, POSITIONS, fmtTime, money, weekdayLong, fmtDayMonth, type PositionKey } from "./format";
 import { appUrl } from "./mail";
 
-type M = { id: string; groupId: string; date: Date; location: string | null };
+type M = { id: string; groupId: string; date: Date; location: string | null; shareCode?: string | null };
 type P = { name: string; nickname: string | null };
 const n = (p: P) => p.nickname || p.name;
 
+/** Link da partida: com código, abre a confirmação sem conta. */
 export function matchLink(m: M) {
-  return appUrl(`/p/${m.groupId}/partidas/${m.id}`);
+  return appUrl(m.shareCode ? `/j/${m.shareCode}` : `/p/${m.groupId}/partidas/${m.id}`);
 }
 
 function header(m: M, tz: string) {
