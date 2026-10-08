@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Bell, Check, Clock, Flag, HelpCircle, Lock, MapPin, Pencil, Scale, Shuffle, Unlock, Users, X } from "lucide-react";
+import { Beef, Bell, Check, Clock, Flag, HelpCircle, Lock, MapPin, Pencil, Scale, Shuffle, Unlock, Users, X } from "lucide-react";
 import type { Attendance } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getMembership } from "@/lib/tenancy";
@@ -286,6 +286,12 @@ export default async function MatchPage({ params, searchParams }: { params: Prom
             <ResultView />
           )}
         </div>
+      )}
+
+      {!canceled && (
+        <Link href={`${base}/churrasco`} className="mt-6 flex items-center justify-center gap-1.5 text-sm text-fg/45 hover:text-fg/70">
+          <Beef size={15} /> Vai ter churrasco depois? Dividir a conta
+        </Link>
       )}
     </>
   );
