@@ -4,7 +4,7 @@ import { Bell, Check, Clock, Flag, HelpCircle, Lock, MapPin, Pencil, Scale, Shuf
 import type { Attendance } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getMembership } from "@/lib/tenancy";
-import { POSITIONS, fmtDayMonth, fmtTime, fmtTimeRange, money, weekdayLong } from "@/lib/format";
+import { POSITIONS, fmtDayMonth, fmtTime, fmtTimeRange, money, scoreLine, weekdayLong } from "@/lib/format";
 import { peerSummaries } from "@/lib/ratings";
 import { LOW_CONDUCT, StarBadge, Stars } from "@/components/Stars";
 import { ACCESS, FORMATS } from "@/lib/labels";
@@ -279,7 +279,7 @@ export default async function MatchPage({ params, searchParams }: { params: Prom
               <Flag size={28} className="mx-auto text-fg/30" />
               <p className="mt-3 font-semibold text-fg/60">O resultado aparece aqui depois do jogo.</p>
               {isOrganizer && (
-                <Link href={`${base}/resultado`} className="btn-primary mt-4">Registrar resultado</Link>
+                <Link href={`${base}/resultado`} className="btn-primary mt-4">{match.format === "ROTATION" ? "Lançar vitórias, empates e derrotas" : "Registrar resultado"}</Link>
               )}
             </div>
           ) : (
@@ -331,7 +331,33 @@ export default async function MatchPage({ params, searchParams }: { params: Prom
     m.votes.forEach((v) => tally.set(v.votedId, (tally.get(v.votedId) ?? 0) + 1));
     return (
       <>
-        {m.teams.length >= 2 && (
+        {m.teams.length >= 2 && m.format === "ROTATION" && (() => {
+          const pts = (t: (typeof m.teams)[number]) => t.wins * 3 + t.draws;
+          const sorted = [...m.teams].sort((a, b) => pts(b) - pts(a));
+          return (
+            <div className="card p-0">
+              <div className="px-4 pt-4">
+                <p className="text-xs font-bold uppercase tracking-wider text-accent">Rodízio</p>
+                <p className="font-display text-3xl font-bold uppercase">{scoreLine(m.teams, true)}</p>
+                <p className="text-xs text-fg/50">Vitória 3, empate 1, derrota 0.</p>
+              </div>
+              <table className="mt-3 w-full text-sm">
+                <thead className="text-xs text-fg/45">
+                  <tr><th className="px-4 py-1 text-left font-semibold">Time</th><th>V</th><th>E</th><th>D</th><th className="pr-4">Pts</th></tr>
+                </thead>
+                <tbody>
+                  {sorted.map((t) => (
+                    <tr key={t.id} className="border-t border-fg/[0.07] text-center">
+                      <td className="px-4 py-2 text-left font-semibold"><i className={`mr-2 inline-block h-2.5 w-2.5 rounded-full ${TEAM_COLORS[t.color]}`} />{t.name.replace("Time ", "")}</td>
+                      <td>{t.wins}</td><td>{t.draws}</td><td>{t.losses}</td><td className="pr-4 font-black">{pts(t)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        })()}
+        {m.teams.length >= 2 && m.format !== "ROTATION" && (
           <div className="card">
             <div className="flex items-center justify-around text-center">
               {m.teams.map((t, i) => (
@@ -426,7 +452,7 @@ export default async function MatchPage({ params, searchParams }: { params: Prom
 
         <WhatsAppButton
           label="Enviar resultado no WhatsApp"
-          text={resultText(m, tz, m.teams, scorers.map((s) => ({ p: s.player, goals: s.goals })), m.mvp)}
+          text={resultText(m, tz, m.teams, scorers.map((s) => ({ p: s.player, goals: s.goals })), m.mvp, m.format === "ROTATION")}
         />
         {isOrganizer && (
           <div className="grid grid-cols-2 gap-2">

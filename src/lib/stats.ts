@@ -60,7 +60,8 @@ export async function groupStats(groupId: string, period: Period = "sempre", pla
     where,
     select: {
       mvpPlayerId: true,
-      teams: { select: { id: true, score: true } },
+      format: true,
+      teams: { select: { id: true, score: true, wins: true, draws: true, losses: true } },
       players: {
         where: { played: true, ...(playerId ? { playerId } : {}) },
         select: {
@@ -96,10 +97,20 @@ export async function groupStats(groupId: string, period: Period = "sempre", pla
         s.ratingSum += mp.rating;
         s.ratingCount++;
       }
-      const o = teamOutcome(m.teams, mp.teamId);
-      if (o === "W") s.wins++;
-      else if (o === "D") s.draws++;
-      else if (o === "L") s.losses++;
+      if (m.format === "ROTATION") {
+        // rodízio: o jogador leva as vitórias, empates e derrotas do time dele na noite
+        const t = m.teams.find((x) => x.id === mp.teamId);
+        if (t) {
+          s.wins += t.wins;
+          s.draws += t.draws;
+          s.losses += t.losses;
+        }
+      } else {
+        const o = teamOutcome(m.teams, mp.teamId);
+        if (o === "W") s.wins++;
+        else if (o === "D") s.draws++;
+        else if (o === "L") s.losses++;
+      }
       if (m.mvpPlayerId === mp.playerId) s.mvps++;
     }
   }

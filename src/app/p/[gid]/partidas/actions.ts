@@ -227,6 +227,10 @@ export async function saveResult(gid: string, mid: string, _: ActionState, form:
   const wasFinished = match.status === "FINISHED";
   await db.$transaction(async (tx) => {
     for (const t of teams) {
+      if (match.format === "ROTATION") {
+        await tx.team.update({ where: { id: t.id }, data: { score: null, wins: num(form.get(`w_${t.id}`)), draws: num(form.get(`d_${t.id}`)), losses: num(form.get(`l_${t.id}`)) } });
+        continue;
+      }
       const raw = form.get(`score_${t.id}`);
       await tx.team.update({ where: { id: t.id }, data: { score: raw === "" || raw == null ? null : num(raw) } });
     }

@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getMembership } from "@/lib/tenancy";
@@ -9,8 +10,9 @@ import { saveResult } from "../../actions";
 
 export const metadata = { title: "Resultado" };
 
-export default async function ResultForm({ params }: { params: Promise<{ gid: string; mid: string }> }) {
+export default async function ResultForm({ params, searchParams }: { params: Promise<{ gid: string; mid: string }>; searchParams: Promise<{ ao_vivo?: string }> }) {
   const { gid, mid } = await params;
+  const sp = await searchParams;
   const { group, isOrganizer } = await getMembership(gid);
   if (!isOrganizer) redirect(`/p/${gid}/partidas/${mid}`);
   const match = await db.match.findFirst({
@@ -19,6 +21,7 @@ export default async function ResultForm({ params }: { params: Promise<{ gid: st
   });
   if (!match || match.status === "CANCELED") notFound();
   const finished = match.status === "FINISHED";
+  const rotation = match.format === "ROTATION";
 
   const sections = [
     ...match.teams.map((t) => ({ key: t.id, title: t.name, list: match.players.filter((p) => p.teamId === t.id), open: true })),
@@ -31,7 +34,25 @@ export default async function ResultForm({ params }: { params: Promise<{ gid: st
     <>
       <PageHeader title="Resultado" subtitle={fmtDayMonth(match.date, group.timezone)} back={`/p/${gid}/partidas/${mid}?aba=resultado`} />
       <ActionForm action={saveResult.bind(null, gid, mid)}>
-        {match.teams.length >= 2 && (
+        {sp.ao_vivo && <p className="rounded-2xl bg-accent/10 px-4 py-3 text-sm font-medium text-accent">{rotation ? "Tabela" : "Placar"} do controle salvo. Agora é só lançar gols e assistências.</p>}
+        {match.teams.length >= 2 && rotation && (
+          <div className="card">
+            <p className="section-title px-0">Vitórias, empates e derrotas</p>
+            <p className="mb-2 text-xs text-fg/50">Sem placar: conta só vitória (3), empate (1) e derrota (0).</p>
+            <div className="grid grid-cols-[1fr_repeat(3,3.5rem)] items-center gap-2 text-center text-xs font-semibold text-fg/50">
+              <span className="text-left">Time</span><span>V</span><span>E</span><span>D</span>
+              {match.teams.map((t) => (
+                <Fragment key={t.id}>
+                  <span className="truncate text-left text-sm font-bold text-fg">{t.name.replace("Time ", "")}</span>
+                  {(["w", "d", "l"] as const).map((k) => (
+                    <input key={k} aria-label={`${{ w: "Vitórias", d: "Empates", l: "Derrotas" }[k]} do ${t.name}`} name={`${k}_${t.id}`} type="number" inputMode="numeric" min={0} defaultValue={{ w: t.wins, d: t.draws, l: t.losses }[k] || ""} placeholder="0" className={small} />
+                  ))}
+                </Fragment>
+              ))}
+            </div>
+          </div>
+        )}
+        {match.teams.length >= 2 && !rotation && (
           <div className="card">
             <p className="section-title px-0">Placar</p>
             <div className="flex items-end justify-center gap-3">
