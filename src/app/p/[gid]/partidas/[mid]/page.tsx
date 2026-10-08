@@ -4,7 +4,9 @@ import { Bell, Check, Clock, Flag, HelpCircle, Lock, MapPin, Pencil, Scale, Shuf
 import type { Attendance } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getMembership } from "@/lib/tenancy";
-import { POSITIONS, fmtDayMonth, fmtRating, fmtTime, fmtTimeRange, money, weekdayLong } from "@/lib/format";
+import { POSITIONS, fmtDayMonth, fmtTimeRange, money, weekdayLong } from "@/lib/format";
+import { peerSummaries } from "@/lib/ratings";
+import { LOW_CONDUCT, StarBadge, Stars } from "@/components/Stars";
 import { ACCESS, FORMATS } from "@/lib/labels";
 import { MATCH_STATUS_LABEL } from "@/lib/matches";
 import { ATTENDANCE_LABEL } from "@/lib/attendance";
@@ -27,7 +29,7 @@ const TEAM_COLORS: Record<string, string> = {
 
 type Tab = "presenca" | "times" | "resultado";
 
-export default async function MatchPage({ params, searchParams }: { params: Promise<{ gid: string; mid: string }>; searchParams: Promise<{ aba?: Tab; criada?: string; cobrados?: string }> }) {
+export default async function MatchPage({ params, searchParams }: { params: Promise<{ gid: string; mid: string }>; searchParams: Promise<{ aba?: Tab; criada?: string; cobrados?: string; avaliado?: string }> }) {
   const { gid, mid } = await params;
   const sp = await searchParams;
   const { group, isOrganizer, player: me } = await getMembership(gid);
@@ -42,6 +44,19 @@ export default async function MatchPage({ params, searchParams }: { params: Prom
   });
   if (!match) notFound();
   const tz = group.timezone;
+  // estrelas de cada jogador, só para quem organiza
+  const peer = isOrganizer ? await peerSummaries(match.players.map((p) => p.playerId)) : null;
+  function OrgStars({ p }: { p: { id: string; skill: number } }) {
+    if (!peer) return null;
+    const s = peer.get(p.id);
+    const conduct = s?.conduct ?? null;
+    return (
+      <span className="flex shrink-0 gap-1">
+        <StarBadge value={s?.quality ?? p.skill / 2} />
+        {conduct != null && conduct < LOW_CONDUCT && <StarBadge value={conduct} tone="red" label="conduta" />}
+      </span>
+    );
+  }
 
   const by = (s: Attendance) => match.players.filter((p) => p.status === s && p.player.active);
   const confirmed = by("CONFIRMED");
@@ -213,9 +228,10 @@ export default async function MatchPage({ params, searchParams }: { params: Prom
                     <ul className="divide-y divide-fg/[0.07] px-4 pb-2 pt-2">
                       {members.map((m) => (
                         <li key={m.id} className="flex items-center gap-3 py-2">
-                                                    <Avatar name={m.player.name} photo={m.player.photo} size={30} />
+                          <Avatar name={m.player.name} photo={m.player.photo} size={30} />
                           <span className={`flex-1 truncate font-medium ${m.playerId === me.id ? "text-accent" : ""}`}>{nm(m.player)}</span>
                           <span className="text-xs text-fg/40">{POSITIONS[m.player.position].short}</span>
+                          <OrgStars p={m.player} />
                           {isOrganizer && !finished && (
                             <form action={moveToTeam.bind(null, gid, mid, m.id)}>
                               <AutoSubmitSelect name="teamId" defaultValue={t.id} className="rounded-lg bg-fg/[0.06] px-1.5 py-1 text-xs" options={match.teams.map((o) => ({ value: o.id, label: o.name.replace("Time ", "→ ") }))} />
@@ -253,6 +269,7 @@ export default async function MatchPage({ params, searchParams }: { params: Prom
       {/* RESULTADO */}
       {tab === "resultado" && !canceled && (
         <div className="mt-4 flex flex-col gap-4">
+          {sp.avaliado && <p className="rounded-2xl bg-accent/10 px-4 py-3 text-sm font-medium text-accent">Avaliações enviadas. Obrigado!</p>}
           {sp.cobrados && isOrganizer && (
             <p className="rounded-2xl bg-accent/10 px-4 py-3 text-sm font-medium text-accent">{sp.cobrados} cobrança(s) de avulso geradas no Financeiro.</p>
           )}
@@ -285,6 +302,7 @@ export default async function MatchPage({ params, searchParams }: { params: Prom
               <span className={`flex-1 truncate font-medium ${mp.playerId === me.id ? "text-accent" : ""}`}>
                 {nm(mp.player)} {mp.player.position === "GOALKEEPER" && <span className="ml-1 text-xs font-semibold text-fg/40">GOL</span>}
               </span>
+              <OrgStars p={mp.player} />
               {isOrganizer && !finished && (
                 <form action={setPlayerStatus.bind(null, gid, mid, mp.playerId)}>
                   <AutoSubmitSelect
@@ -390,10 +408,18 @@ export default async function MatchPage({ params, searchParams }: { params: Prom
                   {p.yellowCards > 0 && <span className="inline-block h-3.5 w-2.5 rounded-[2px] bg-yellow-400" title={`${p.yellowCards} amarelo(s)`} />}
                   {p.redCards > 0 && <span className="inline-block h-3.5 w-2.5 rounded-[2px] bg-red-500" title="vermelho" />}
                   {tally.get(p.playerId) && m.votingOpen ? <Badge tone="amber">{tally.get(p.playerId)} voto(s)</Badge> : null}
-                  {p.rating != null && <Badge tone="dark">{fmtRating(p.rating)}</Badge>}
+                  {p.rating != null && <Stars value={p.rating / 2} size={12} />}
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {played.some((p) => p.playerId === me.id) && played.length > 1 && (
+          <div className="card bg-accent/[0.06] ring-accent/30">
+            <p className="font-extrabold">Como foi a galera em campo?</p>
+            <p className="mb-3 text-sm text-fg/55">Avalie a qualidade e a conduta de quem jogou com você. É anônimo e vai para o perfil de cada um.</p>
+            <Link href={`${base}/avaliar`} className="btn-primary w-full">{sp.avaliado ? "Revisar minhas avaliações" : "Avaliar jogadores"}</Link>
           </div>
         )}
 

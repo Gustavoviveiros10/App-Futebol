@@ -18,7 +18,7 @@ function toData(d: ReturnType<typeof playerSchema.parse>, tz: string) {
     billingType: d.billingType,
     monthlyFeeCents: d.billingType === "MONTHLY" && d.monthlyFee ? parseMoney(d.monthlyFee) : null,
     position: d.position,
-    skill: d.skill,
+    skill: d.skill ? d.skill * 2 : undefined,
     ...(d.joinedAt ? { joinedAt: zonedToUtc(d.joinedAt, "12:00", tz) } : {}),
   };
 }

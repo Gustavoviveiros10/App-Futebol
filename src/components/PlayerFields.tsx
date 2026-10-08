@@ -1,6 +1,7 @@
 import type { Player } from "@prisma/client";
 import { POSITIONS, centsToInput, utcToZonedInput } from "@/lib/format";
 import { PhotoInput } from "./PhotoInput";
+import { StarInput } from "./StarInput";
 
 export function PlayerFields({ p, defaultMonthly, canSetRole }: { p?: Player; defaultMonthly: number; canSetRole?: boolean }) {
   return (
@@ -56,11 +57,7 @@ export function PlayerFields({ p, defaultMonthly, canSetRole }: { p?: Player; de
       </div>
 
       <div>
-        <label className="label" htmlFor="skill">Nível (1 a 10)</label>
-        <input className="w-full accent-accent" id="skill" name="skill" type="range" min={1} max={10} defaultValue={p?.skill ?? 5} />
-        <div className="flex justify-between px-0.5 text-xs text-fg/40">
-          {Array.from({ length: 10 }, (_, i) => <span key={i}>{i + 1}</span>)}
-        </div>
+        <StarInput name="skill" label="Nível para o sorteio" defaultValue={p ? Math.round(p.skill / 2) : 3} />
         <p className="mt-1 text-xs text-fg/45">Só você vê. Serve apenas como referência para equilibrar os times.</p>
       </div>
 

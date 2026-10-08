@@ -4,6 +4,7 @@ import { getMembership } from "@/lib/tenancy";
 import { fmtDayMonth } from "@/lib/format";
 import { Avatar, PageHeader } from "@/components/ui";
 import { ActionForm, SubmitButton } from "@/components/forms";
+import { StarInput } from "@/components/StarInput";
 import { saveResult } from "../../actions";
 
 export const metadata = { title: "Resultado" };
@@ -64,10 +65,12 @@ export default async function ResultForm({ params }: { params: Promise<{ gid: st
                       <span className="text-xs text-fg/50">Jogou</span>
                       <input type="checkbox" name={`played_${mp.id}`} defaultChecked={played} className="h-5 w-5 accent-accent" />
                     </label>
-                    <div className="mt-2 grid grid-cols-3 gap-2">
+                    <div className="mt-2 grid grid-cols-2 gap-2">
                       <label className="text-center text-[11px] font-semibold text-fg/50">Gols<input className={small} name={`goals_${mp.id}`} type="number" inputMode="numeric" min={0} defaultValue={mp.goals || ""} placeholder="0" /></label>
                       <label className="text-center text-[11px] font-semibold text-fg/50">Assist.<input className={small} name={`assists_${mp.id}`} type="number" inputMode="numeric" min={0} defaultValue={mp.assists || ""} placeholder="0" /></label>
-                      <label className="text-center text-[11px] font-semibold text-fg/50">Nota<input className={small} name={`rating_${mp.id}`} inputMode="decimal" defaultValue={mp.rating?.toString().replace(".", ",") ?? ""} placeholder="1–10" /></label>
+                    </div>
+                    <div className="mt-2">
+                      <StarInput name={`rating_${mp.id}`} label="Nota" size={24} defaultValue={mp.rating != null ? Math.round(mp.rating / 2) : null} />
                     </div>
                     <details className="mt-2">
                       <summary className="cursor-pointer text-xs font-semibold text-fg/40">Cartões e defesas</summary>
@@ -83,7 +86,7 @@ export default async function ResultForm({ params }: { params: Promise<{ gid: st
             </div>
           </details>
         ))}
-        <p className="px-1 text-xs text-fg/45">A nota (1 a 10) serve só como referência para equilibrar os próximos sorteios.</p>
+        <p className="px-1 text-xs text-fg/45">A nota (1 a 5 estrelas) serve só como referência para equilibrar os próximos sorteios.</p>
         <div className="sticky bottom-24 z-10">
           <SubmitButton className="btn-primary w-full py-4 shadow-lg" pendingText="Salvando...">{finished ? "Salvar alterações" : "Encerrar partida e salvar"}</SubmitButton>
         </div>

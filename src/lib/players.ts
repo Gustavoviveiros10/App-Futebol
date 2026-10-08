@@ -12,7 +12,7 @@ export const playerSchema = z.object({
   billingType: z.enum(["MONTHLY", "PER_MATCH"]),
   monthlyFee: z.string().optional(),
   position: z.enum(["GOALKEEPER", "DEFENDER", "FULLBACK", "MIDFIELDER", "FORWARD"]),
-  skill: z.coerce.number().int().min(1).max(10).default(5),
+  skill: z.coerce.number().int().min(1).max(5).optional(), // estrelas; no banco vai x2
   joinedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   role: z.enum(["ORGANIZER", "PLAYER"]).optional(),
 });

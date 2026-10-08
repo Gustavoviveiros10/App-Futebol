@@ -115,7 +115,7 @@ export const RANKINGS = [
   { key: "geral", icon: "🏆", label: "Geral", value: (s: PlayerStats) => s.points, fmt: (v: number) => `${v.toLocaleString("pt-BR")} pts`, hint: "Vitória 3 · Empate 1 · Gol 1 · Assistência 0,5 · Craque 3" },
   { key: "artilharia", icon: "⚽", label: "Artilharia", value: (s: PlayerStats) => s.goals, fmt: (v: number) => `${v} gols` },
   { key: "assistencias", icon: "🎯", label: "Assistências", value: (s: PlayerStats) => s.assists, fmt: (v: number) => `${v}` },
-  { key: "media", icon: "⭐", label: "Melhor média", value: (s: PlayerStats) => (s.ratingCount >= 1 ? s.avgRating ?? 0 : 0), fmt: (v: number) => v.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) },
+  { key: "media", icon: "⭐", label: "Melhor média", value: (s: PlayerStats) => (s.ratingCount >= 1 ? (s.avgRating ?? 0) / 2 : 0), fmt: (v: number) => `${v.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} ★` },
   { key: "vitorias", icon: "🔥", label: "Vitórias", value: (s: PlayerStats) => s.wins, fmt: (v: number) => `${v}` },
   { key: "goleiro", icon: "🧤", label: "Goleiros", value: (s: PlayerStats) => (s.player.position === "GOALKEEPER" ? s.saves + s.wins * 2 : 0), fmt: (v: number) => `${v} pts`, hint: "Defesas + 2 por vitória" },
   { key: "partidas", icon: "🏅", label: "Mais partidas", value: (s: PlayerStats) => s.games, fmt: (v: number) => `${v} jogos` },

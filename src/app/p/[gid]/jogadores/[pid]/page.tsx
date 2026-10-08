@@ -3,8 +3,10 @@ import { notFound } from "next/navigation";
 import { Pencil, Trophy } from "lucide-react";
 import { db } from "@/lib/db";
 import { getMembership } from "@/lib/tenancy";
-import { POSITIONS, fmtDate, fmtRating, money } from "@/lib/format";
-import { groupStats, teamOutcome } from "@/lib/stats";
+import { POSITIONS, fmtDate, fmtStars, money } from "@/lib/format";
+import { peerProfile } from "@/lib/ratings";
+import { Stars } from "@/components/Stars";
+import { groupStats } from "@/lib/stats";
 import { paymentView, playerFinanceStatus } from "@/lib/finance";
 import { Avatar, Badge, PageHeader, Stat } from "@/components/ui";
 import { FinanceBadge } from "@/components/FinanceBadge";
@@ -17,7 +19,7 @@ export default async function PlayerProfile({ params }: { params: Promise<{ gid:
   if (!p) notFound();
   const canSeeMoney = isOrganizer || me.id === p.id;
 
-  const [[all], [season], recent, payments] = await Promise.all([
+  const [[all], [season], recent, payments, peer] = await Promise.all([
     groupStats(gid, "sempre", pid),
     groupStats(gid, "temporada", pid),
     db.matchPlayer.findMany({
@@ -27,6 +29,7 @@ export default async function PlayerProfile({ params }: { params: Promise<{ gid:
       include: { match: { include: { teams: true } }, team: true },
     }),
     canSeeMoney ? db.payment.findMany({ where: { playerId: pid, status: { not: "CANCELED" } }, orderBy: { dueDate: "desc" }, take: 6 }) : Promise.resolve([]),
+    peerProfile(pid),
   ]);
 
   const s = all;
@@ -62,12 +65,38 @@ export default async function PlayerProfile({ params }: { params: Promise<{ gid:
         <Stat label="Partidas" value={s?.games ?? 0} />
         <Stat label="Gols" value={s?.goals ?? 0} />
         <Stat label="Assistências" value={s?.assists ?? 0} />
-        <Stat label="Vitórias" value={s?.wins ?? 0} tone="green" />
-        <Stat label="Empates" value={s?.draws ?? 0} />
-        <Stat label="Derrotas" value={s?.losses ?? 0} tone="red" />
-        <Stat label="Média" value={fmtRating(s?.avgRating)} />
+        <Stat label="Nota média" value={<span className="flex items-baseline gap-1">{fmtStars(s?.avgRating != null ? s.avgRating / 2 : null)}<small className="text-sm text-gold">★</small></span>} />
         <Stat label="Craque" value={`${s?.mvps ?? 0}x`} />
-        {p.position === "GOALKEEPER" ? <Stat label="Defesas" value={s?.saves ?? 0} /> : <Stat label="Cartões" value={(s?.yellow ?? 0) + (s?.red ?? 0)} />}
+        {p.position === "GOALKEEPER" && <Stat label="Defesas" value={s?.saves ?? 0} />}
+      </div>
+
+      <p className="section-title">Avaliações dos colegas</p>
+      <div className="card mb-4">
+        {peer.count === 0 ? (
+          <p className="text-sm text-fg/50">Ainda sem avaliações. Elas aparecem depois que os colegas avaliam a partida.</p>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              {([["Qualidade", peer.quality], ["Conduta", peer.conduct]] as const).map(([label, v]) => (
+                <div key={label} className="rounded-xl bg-fg/[0.04] p-3 ring-1 ring-fg/[0.05]">
+                  <p className="text-xs font-medium text-fg/50">{label}</p>
+                  <p className="text-2xl font-extrabold">{fmtStars(v)}</p>
+                  <Stars value={v} size={14} />
+                </div>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-fg/45">{peer.count} avaliação(ões), todas anônimas.</p>
+            {peer.tags.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {peer.tags.map((t) => (
+                  <span key={t.tag} className={`chip ${t.bad ? "bg-red-500/15 text-red-400" : "bg-fg/[0.06] text-fg/75"}`}>
+                    {t.tag} <b>{t.count}</b>
+                  </span>
+                ))}
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       {season && (
@@ -77,7 +106,7 @@ export default async function PlayerProfile({ params }: { params: Promise<{ gid:
             <div><p className="text-xl font-extrabold">{season.games}</p><p className="text-xs text-fg/50">jogos</p></div>
             <div><p className="text-xl font-extrabold">{season.goals}</p><p className="text-xs text-fg/50">gols</p></div>
             <div><p className="text-xl font-extrabold">{season.assists}</p><p className="text-xs text-fg/50">assist.</p></div>
-            <div><p className="text-xl font-extrabold">{fmtRating(season.avgRating)}</p><p className="text-xs text-fg/50">média</p></div>
+            <div><p className="text-xl font-extrabold">{fmtStars(season.avgRating != null ? season.avgRating / 2 : null)} <small className="text-sm text-gold">★</small></p><p className="text-xs text-fg/50">nota média</p></div>
           </div>
         </>
       )}
@@ -88,7 +117,7 @@ export default async function PlayerProfile({ params }: { params: Promise<{ gid:
             <p className="font-semibold">Nível para o sorteio</p>
             <p className="text-xs text-fg/45">Só organizadores veem</p>
           </div>
-          <span className="text-2xl font-black text-accent">{p.skill}/10</span>
+          <Stars value={p.skill / 2} size={20} />
         </div>
       )}
 
@@ -97,12 +126,8 @@ export default async function PlayerProfile({ params }: { params: Promise<{ gid:
           <p className="section-title">Últimas partidas</p>
           <div className="card mb-4 divide-y divide-fg/[0.07] p-0">
             {recent.map((mp) => {
-              const o = teamOutcome(mp.match.teams, mp.teamId);
               return (
                 <Link key={mp.id} href={`/p/${gid}/partidas/${mp.matchId}`} className="flex items-center gap-3 px-4 py-3">
-                  <span className={`flex h-8 w-8 items-center justify-center rounded-xl text-sm font-black ${o === "W" ? "bg-accent/10 text-accent" : o === "L" ? "bg-red-500/15 text-red-400" : "bg-fg/[0.06] text-fg/60"}`}>
-                    {o === "W" ? "V" : o === "L" ? "D" : o === "D" ? "E" : "–"}
-                  </span>
                   <div className="flex-1 text-sm">
                     <p className="font-semibold">{fmtDate(mp.match.date, group.timezone)}</p>
                     <p className="text-fg/50">{mp.team?.name ?? "Sem time"}</p>
@@ -111,7 +136,7 @@ export default async function PlayerProfile({ params }: { params: Promise<{ gid:
                     {mp.goals > 0 && <span className="mr-2">{mp.goals} G</span>}
                     {mp.assists > 0 && <span className="mr-2">{mp.assists} A</span>}
                     {mp.match.mvpPlayerId === p.id && <Trophy size={13} className="mr-2 inline text-gold" />}
-                    {mp.rating != null && <Badge tone="dark">{fmtRating(mp.rating)}</Badge>}
+                    {mp.rating != null && <Stars value={mp.rating / 2} size={12} />}
                   </div>
                 </Link>
               );

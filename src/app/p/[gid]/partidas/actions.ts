@@ -15,6 +15,7 @@ import { notifyGroup, notifyPlayers } from "@/lib/notify";
 import { TEAM_PRESETS, drawTeams as runDraw, playerStrength, type DrawMode } from "@/lib/draw";
 import { groupStats } from "@/lib/stats";
 import { chargeMatchPlayers } from "@/lib/finance";
+import { ALL_TAGS } from "@/lib/ratings";
 
 const attendance = z.enum(["CONFIRMED", "DECLINED", "MAYBE", "PENDING", "WAITLIST"]);
 
@@ -214,13 +215,14 @@ export async function saveResult(gid: string, mid: string, _: ActionState, form:
     db.team.findMany({ where: { matchId: mid } }),
     db.matchPlayer.findMany({ where: { matchId: mid } }),
   ]);
+  // estrelas de 1 a 5 na tela; no banco a nota continua de 1 a 10
   const ratingOf = (v: FormDataEntryValue | null) => {
-    const s = String(v ?? "").replace(",", ".").trim();
+    const s = String(v ?? "").trim();
     if (!s) return null;
-    const n = Number.parseFloat(s);
-    return Number.isFinite(n) && n >= 1 && n <= 10 ? Math.round(n * 10) / 10 : undefined;
+    const n = Number.parseInt(s, 10);
+    return Number.isFinite(n) && n >= 1 && n <= 5 ? n * 2 : undefined;
   };
-  for (const mp of mps) if (ratingOf(form.get(`rating_${mp.id}`)) === undefined) return { error: "As notas precisam estar entre 1 e 10." };
+  for (const mp of mps) if (ratingOf(form.get(`rating_${mp.id}`)) === undefined) return { error: "Escolha de 1 a 5 estrelas." };
 
   const wasFinished = match.status === "FINISHED";
   await db.$transaction(async (tx) => {
@@ -297,4 +299,34 @@ export async function reopenVoting(gid: string, mid: string) {
   if (match.status !== "FINISHED") throw new Error("Partida ainda não encerrada.");
   await db.match.update({ where: { id: mid }, data: { votingOpen: true, mvpPlayerId: null } });
   refresh(gid);
+}
+
+const peerSchema = z.object({ quality: z.coerce.number().int().min(1).max(5), conduct: z.coerce.number().int().min(1).max(5) });
+
+/** Avaliação anônima dos colegas que jogaram (qualidade, conduta e tags). */
+export async function ratePlayers(gid: string, mid: string, _: ActionState, form: FormData): Promise<ActionState> {
+  const { player } = await requireMember(gid);
+  const match = await getMatch(gid, mid);
+  if (match.status !== "FINISHED") return { error: "Só dá para avaliar depois que a partida termina." };
+  const me = await db.matchPlayer.findFirst({ where: { matchId: mid, playerId: player.id, played: true } });
+  if (!me) return { error: "Só quem jogou pode avaliar os colegas." };
+  const others = await db.matchPlayer.findMany({ where: { matchId: mid, played: true, playerId: { not: player.id } }, select: { playerId: true } });
+  const rows = others.flatMap(({ playerId }) => {
+    const parsed = peerSchema.safeParse({ quality: form.get(`q_${playerId}`), conduct: form.get(`c_${playerId}`) });
+    if (!parsed.success) return [];
+    const tags = form.getAll(`t_${playerId}`).map(String).filter((t) => ALL_TAGS.includes(t));
+    return [{ ratedId: playerId, ...parsed.data, tags }];
+  });
+  if (!rows.length) return { error: "Dê estrelas de qualidade e conduta para pelo menos um jogador." };
+  await db.$transaction(
+    rows.map((r) =>
+      db.peerRating.upsert({
+        where: { matchId_raterId_ratedId: { matchId: mid, raterId: player.id, ratedId: r.ratedId } },
+        create: { matchId: mid, raterId: player.id, ...r },
+        update: { quality: r.quality, conduct: r.conduct, tags: r.tags },
+      }),
+    ),
+  );
+  refresh(gid);
+  redirect(`/p/${gid}/partidas/${mid}?aba=resultado&avaliado=${rows.length}`);
 }

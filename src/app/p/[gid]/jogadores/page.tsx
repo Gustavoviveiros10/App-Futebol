@@ -4,6 +4,9 @@ import { db } from "@/lib/db";
 import { getMembership } from "@/lib/tenancy";
 import { POSITIONS } from "@/lib/format";
 import { playerFinanceStatus } from "@/lib/finance";
+import { gameStars, peerSummaries } from "@/lib/ratings";
+import { groupStats } from "@/lib/stats";
+import { LOW_CONDUCT, StarBadge } from "@/components/Stars";
 import { inviteLink, inviteText } from "@/lib/invite";
 import { Avatar, Badge, Empty, PageHeader } from "@/components/ui";
 import { FinanceBadge } from "@/components/FinanceBadge";
@@ -21,6 +24,9 @@ export default async function PlayersPage({ params, searchParams }: { params: Pr
     orderBy: [{ name: "asc" }],
     include: isOrganizer ? { payments: { where: { status: "PENDING" }, select: { status: true, dueDate: true } } } : undefined,
   });
+  // estrelas de jogo e conduta: só o organizador vê na lista
+  const [peer, stats] = isOrganizer ? await Promise.all([peerSummaries(players.map((p) => p.id)), groupStats(gid, "sempre")]) : [null, []];
+  const avg = new Map(stats.map((s) => [s.player.id, s.avgRating]));
 
   return (
     <>
@@ -66,6 +72,14 @@ export default async function PlayersPage({ params, searchParams }: { params: Pr
                     {POSITIONS[p.position].label} · {p.billingType === "MONTHLY" ? "Mensalista" : "Avulso"}
                     {!p.userId && " · sem conta"}
                   </p>
+                  {peer && (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      <StarBadge value={gameStars(peer.get(p.id), avg.get(p.id)) ?? p.skill / 2} label="jogo" />
+                      {peer.get(p.id)?.conduct != null && (
+                        <StarBadge value={peer.get(p.id)!.conduct} tone={peer.get(p.id)!.conduct! < LOW_CONDUCT ? "red" : "green"} label="conduta" />
+                      )}
+                    </div>
+                  )}
                 </div>
                 {fin && <FinanceBadge status={fin} />}
                 {!fin && !p.userId && <Badge>convite</Badge>}
