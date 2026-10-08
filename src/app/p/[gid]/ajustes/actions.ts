@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { requireMember, requireOrganizer } from "@/lib/tenancy";
+import { MAX_ADMINS, requireMember, requireOrganizer, requireOwner } from "@/lib/tenancy";
+import { adminCount } from "@/lib/admins";
 import { parseMoney } from "@/lib/format";
 import { formObject, groupDuration, groupSchema, newInviteCode } from "@/lib/validation";
 import { type ActionState, zodError } from "@/lib/actions";
@@ -70,4 +71,25 @@ export async function leaveGroup(gid: string) {
   if (group.ownerId === user.id) throw new Error("O dono não pode sair da própria pelada.");
   await db.player.update({ where: { id: player.id }, data: { userId: null, role: "PLAYER" } });
   redirect("/app?todas=1");
+}
+
+export async function addAdmin(gid: string, _: ActionState, form: FormData): Promise<ActionState> {
+  const { group } = await requireOwner(gid);
+  const pid = String(form.get("playerId") ?? "");
+  const target = await db.player.findFirst({ where: { id: pid, groupId: gid, active: true } });
+  if (!target) return { error: "Escolha um jogador." };
+  if (!target.userId) return { error: "Só quem já entrou com conta pode ser administrador." };
+  if (target.role === "ORGANIZER") return { error: "Essa pessoa já é administradora." };
+  if ((await adminCount(gid, group.ownerId)) >= MAX_ADMINS) return { error: `No máximo ${MAX_ADMINS} administradores além de você.` };
+  await db.player.update({ where: { id: target.id }, data: { role: "ORGANIZER" } });
+  revalidatePath(`/p/${gid}`, "layout");
+  return { ok: `${target.nickname || target.name} agora é administrador.` };
+}
+
+export async function removeAdmin(gid: string, pid: string) {
+  const { group } = await requireOwner(gid);
+  const target = await db.player.findFirst({ where: { id: pid, groupId: gid } });
+  if (!target || target.userId === group.ownerId) throw new Error("Não é possível tirar este administrador.");
+  await db.player.update({ where: { id: target.id }, data: { role: "PLAYER" } });
+  revalidatePath(`/p/${gid}`, "layout");
 }

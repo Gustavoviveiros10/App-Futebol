@@ -19,7 +19,9 @@ export const getMembership = cache(async (groupId: string) => {
     user,
     player,
     group: player.group,
+    // dono ou administrador: os dois cuidam das partidas e do financeiro
     isOrganizer: player.role === "ORGANIZER",
+    isOwner: player.group.ownerId === user.id,
   };
 });
 
@@ -30,5 +32,14 @@ export async function requireMember(groupId: string) {
 export async function requireOrganizer(groupId: string) {
   const m = await getMembership(groupId);
   if (!m.isOrganizer) throw new Error("Apenas o organizador pode fazer isso.");
+  return m;
+}
+
+/** Até 2 administradores além do dono. */
+export const MAX_ADMINS = 2;
+
+export async function requireOwner(groupId: string) {
+  const m = await getMembership(groupId);
+  if (!m.isOwner) throw new Error("Apenas o dono da pelada pode fazer isso.");
   return m;
 }

@@ -71,7 +71,7 @@ export function PlayerFields({ p, defaultMonthly, canSetRole }: { p?: Player; de
             <label className="label" htmlFor="role">Acesso</label>
             <select className="input" id="role" name="role" defaultValue={p?.role ?? "PLAYER"}>
               <option value="PLAYER">Jogador</option>
-              <option value="ORGANIZER">Organizador</option>
+              <option value="ORGANIZER">Administrador</option>
             </select>
           </div>
         )}
