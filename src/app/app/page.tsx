@@ -52,11 +52,16 @@ export default async function MyGroups({ searchParams }: { searchParams: Promise
       <h1 className="text-5xl">Olá, {user.name.split(" ")[0]}</h1>
       <p className="mt-2 text-fg/55">{memberships.length ? "Escolha uma pelada." : "Bem-vindo. Entre na pelada da sua turma ou organize a sua."}</p>
 
-      {memberships.length > 0 && (
-        <div className="mt-6 flex flex-col gap-2">
-          {memberships.map((m) => (
+      {[
+        { title: "Peladas que organizo", list: memberships.filter((m) => m.role === "ORGANIZER") },
+        { title: "Peladas que jogo", list: memberships.filter((m) => m.role !== "ORGANIZER") },
+      ].filter((sec) => sec.list.length).map((sec) => (
+        <div key={sec.title} className="mt-6">
+        <p className="section-title px-0">{sec.title}</p>
+        <div className="flex flex-col gap-2">
+          {sec.list.map((m) => (
             <div key={m.id} className="flex flex-col gap-2">
-            <Link href={`/p/${m.groupId}`} className="card flex items-center gap-4 transition hover:bg-surface-2">
+            <Link href={m.role === "ORGANIZER" ? `/p/${m.groupId}/modo/organizador` : `/p/${m.groupId}`} prefetch={false} className="card flex items-center gap-4 transition hover:bg-surface-2">
               <div className="pitch-gradient flex h-12 w-12 shrink-0 items-center justify-center rounded-xl">
                 <span className="font-display text-xl font-bold text-accent">{m.group.name.slice(0, 1).toUpperCase()}</span>
               </div>
@@ -80,7 +85,8 @@ export default async function MyGroups({ searchParams }: { searchParams: Promise
             </div>
           ))}
         </div>
-      )}
+        </div>
+      ))}
 
       {/* Organizar a própria pelada */}
       {canCreate ? (

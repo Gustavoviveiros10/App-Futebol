@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { ArrowRight, CalendarDays, Check, MapPin, Trophy } from "lucide-react";
+import { ArrowRight, CalendarDays, CalendarPlus, Check, MapPin, Settings, Trophy, UserPlus, Wallet } from "lucide-react";
 import { db } from "@/lib/db";
 import { getMembership } from "@/lib/tenancy";
-import { fmtDayMonth, fmtTime, fmtTimeRange, money, scoreLine, monthKey, monthLabel, weekdayLong } from "@/lib/format";
+import { WEEKDAYS, fmtDayMonth, fmtTime, fmtTimeRange, money, scoreLine, monthKey, monthLabel, weekdayLong } from "@/lib/format";
 import { financeSummary, paymentView } from "@/lib/finance";
 import { groupStats } from "@/lib/stats";
 import { inviteText } from "@/lib/invite";
@@ -50,9 +50,35 @@ export default async function Dashboard({ params }: { params: Promise<{ gid: str
 
   return (
     <div className="flex flex-col gap-4 pt-1">
-      <div className="px-1 pt-2">
-        <h1 className="text-4xl">E aí, {(me.nickname || user.name).split(" ")[0]}</h1>
-      </div>
+      {isOrganizer ? (
+        <div className="px-1 pt-2">
+          <p className="text-xs font-bold uppercase tracking-widest text-accent">Painel do organizador</p>
+          <h1 className="text-4xl">{group.name}</h1>
+          <p className="text-sm text-fg/50">
+            {[group.weekday != null ? WEEKDAYS[group.weekday] : null, group.time, group.location].filter(Boolean).join(" · ")} · {playerCount} jogadores
+          </p>
+        </div>
+      ) : (
+        <div className="px-1 pt-2">
+          <h1 className="text-4xl">E aí, {(me.nickname || user.name).split(" ")[0]}</h1>
+        </div>
+      )}
+
+      {isOrganizer && (
+        <div className="grid grid-cols-4 gap-2 text-center text-[11px] font-semibold text-fg/70">
+          {([
+            [`/p/${gid}/partidas/nova`, CalendarPlus, "Nova partida"],
+            [`/p/${gid}/jogadores/novo`, UserPlus, "Novo jogador"],
+            [`/p/${gid}/financeiro`, Wallet, "Cobrar e despesas"],
+            [`/p/${gid}/ajustes`, Settings, "Ajustes"],
+          ] as const).map(([href, Icon, label]) => (
+            <Link key={href} href={href} className="card flex flex-col items-center gap-1.5 px-1 py-3 hover:ring-accent/40">
+              <Icon size={20} className="text-accent" />
+              {label}
+            </Link>
+          ))}
+        </div>
+      )}
 
       {onboarding && (
         <div className="card">
@@ -99,7 +125,12 @@ export default async function Dashboard({ params }: { params: Promise<{ gid: str
             </div>
             {count(["WAITLIST"]) > 0 && <p className="mt-2 text-center text-xs text-white/60">+ {count(["WAITLIST"])} na lista de espera</p>}
           </Link>
-          {next.status === "SCHEDULED" ? (
+          {isOrganizer ? (
+            <div className="grid grid-cols-2 gap-2 bg-black/20 p-3 text-sm font-semibold">
+              <Link href={`/p/${gid}/partidas/${next.id}?aba=presenca`} className="btn bg-white/10 py-2.5 text-white hover:bg-white/20">Ver presença</Link>
+              <Link href={`/p/${gid}/partidas/${next.id}?aba=times`} className="btn bg-white/10 py-2.5 text-white hover:bg-white/20">{next.status === "DRAWN" ? "Ver times" : "Sortear times"}</Link>
+            </div>
+          ) : next.status === "SCHEDULED" ? (
             <div className="grid grid-cols-3 gap-2 bg-black/20 p-3">
               {([
                 ["CONFIRMED", "Vou"],
@@ -161,7 +192,7 @@ export default async function Dashboard({ params }: { params: Promise<{ gid: str
         </Link>
       )}
 
-      {(topScorer?.goals || myStats) && (
+      {(topScorer?.goals || (myStats && !isOrganizer)) && (
         <div className="grid grid-cols-2 gap-3">
           {topScorer && topScorer.goals > 0 && (
             <Link href={`/p/${gid}/rankings?r=artilharia`} className="card block">
@@ -170,7 +201,7 @@ export default async function Dashboard({ params }: { params: Promise<{ gid: str
               <p className="text-sm text-fg/50">{topScorer.goals} gols na temporada</p>
             </Link>
           )}
-          {myStats && (
+          {myStats && !isOrganizer && (
             <Link href={`/p/${gid}/jogadores/${me.id}`} className="card block">
               <p className="text-xs font-bold uppercase text-fg/45">Você na temporada</p>
               <p className="mt-1 font-extrabold">{myStats.games} jogos · {myStats.goals} gols</p>

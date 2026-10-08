@@ -1,8 +1,12 @@
 import "server-only";
 import { cache } from "react";
 import { notFound } from "next/navigation";
+import { cookies } from "next/headers";
 import { db } from "./db";
 import { requireUser } from "./auth";
+
+export type ViewMode = "organizador" | "jogador";
+export const VIEW_COOKIE = "jc_modo";
 
 /**
  * Vínculo do usuário logado com uma pelada. Toda rota e ação dentro de
@@ -15,12 +19,17 @@ export const getMembership = cache(async (groupId: string) => {
     include: { group: true },
   });
   if (!player) notFound();
+  // dono ou administrador: os dois cuidam das partidas e do financeiro
+  const canManage = player.role === "ORGANIZER";
+  // quem organiza pode olhar o app como jogador (só muda a tela, não a permissão)
+  const viewMode: ViewMode = canManage && (await cookies()).get(VIEW_COOKIE)?.value === "jogador" ? "jogador" : canManage ? "organizador" : "jogador";
   return {
     user,
     player,
     group: player.group,
-    // dono ou administrador: os dois cuidam das partidas e do financeiro
-    isOrganizer: player.role === "ORGANIZER",
+    canManage,
+    viewMode,
+    isOrganizer: viewMode === "organizador",
     isOwner: player.group.ownerId === user.id,
   };
 });
@@ -31,7 +40,7 @@ export async function requireMember(groupId: string) {
 
 export async function requireOrganizer(groupId: string) {
   const m = await getMembership(groupId);
-  if (!m.isOrganizer) throw new Error("Apenas o organizador pode fazer isso.");
+  if (!m.canManage) throw new Error("Apenas o organizador pode fazer isso.");
   return m;
 }
 
