@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowRight, BarChart3, Check, MessageCircle, Shuffle, UserCheck, Wallet, Trophy } from "lucide-react";
+import { ArrowRight, BarChart3, Check, MessageCircle, Shuffle, UserCheck, Wallet, Trophy, Search } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { PLANS, TRIAL_DAYS } from "@/lib/plans";
 import { money } from "@/lib/format";
@@ -46,6 +46,14 @@ export default async function Home() {
             </Link>
             <Link href="/cadastro" className="btn-ghost px-6 py-4 text-base">Sou jogador</Link>
           </div>
+          <Link href="/jogar?dia=hoje" className="card mt-4 flex max-w-xl items-center gap-3 transition hover:ring-accent/40">
+            <Search size={20} className="shrink-0 text-accent" />
+            <span className="flex-1">
+              <b className="block">Quero jogar hoje</b>
+              <small className="text-fg/55">Partidas com vaga perto de você</small>
+            </span>
+            <span className="btn-primary btn-sm">Buscar</span>
+          </Link>
           <p className="mt-4 text-sm text-fg/40">Jogador usa de graça. Organizador assina o Pro, com {TRIAL_DAYS} dias grátis e sem cartão. Já tem conta? <Link href="/login" className="font-semibold text-fg/70 underline-offset-4 hover:underline">Entrar</Link></p>
         </div>
       </section>

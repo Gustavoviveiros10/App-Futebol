@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowRight, ChevronRight, LogOut, Plus } from "lucide-react";
+import { ArrowRight, ChevronRight, LogOut, Plus, Search } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { PLANS, TRIAL_DAYS } from "@/lib/plans";
@@ -110,6 +110,15 @@ export default async function MyGroups({ searchParams }: { searchParams: Promise
           Quer organizar mais peladas? Ver planos
         </Link>
       )}
+
+      <Link href="/jogar" className="card mt-4 flex items-center gap-3 transition hover:ring-accent/40">
+        <Search size={20} className="shrink-0 text-accent" />
+        <span className="flex-1">
+          <b className="block">Encontrar partidas</b>
+          <small className="text-fg/55">Partidas com vaga abertas para quem quiser jogar</small>
+        </span>
+        <ChevronRight className="text-fg/25" />
+      </Link>
 
       {/* Entrar por convite */}
       <div className="card mt-4">

@@ -12,7 +12,7 @@ import { guestForget, guestRespond } from "./actions";
 
 export const metadata = { title: "Confirmar presença" };
 
-export default async function GuestMatch({ params, searchParams }: { params: Promise<{ code: string }>; searchParams: Promise<{ ok?: string; pedido?: string }> }) {
+export default async function GuestMatch({ params, searchParams }: { params: Promise<{ code: string }>; searchParams: Promise<{ ok?: string; pedido?: string; fora?: string }> }) {
   const { code } = await params;
   const sp = await searchParams;
   const match = await db.match.findUnique({
@@ -74,6 +74,19 @@ export default async function GuestMatch({ params, searchParams }: { params: Pro
           <div className="card p-6 text-center">
             <p className="font-bold">A lista desta partida já foi fechada.</p>
             <p className="mt-1 text-sm text-fg/55">Mudou de ideia? Fale com o organizador.</p>
+          </div>
+        ) : sp.fora && match.access !== "RESTRICTED" ? (
+          <div className="card p-5">
+            <p className="text-lg font-extrabold">{match.access === "OPEN" ? "Entrar na partida" : "Pedir vaga"}</p>
+            <p className="mt-1 text-sm text-fg/55">
+              {match.access === "OPEN" ? "Partida aberta: você entra direto enquanto houver vaga." : "O organizador aprova e te avisa."} Sem cadastro.
+            </p>
+            <ActionForm action={action} className="mt-3 flex flex-col gap-3">
+              <input className="input" name="name" placeholder="Seu nome" aria-label="Seu nome" required />
+              <input className="input" name="phone" type="tel" inputMode="tel" placeholder="WhatsApp" aria-label="WhatsApp" required />
+              <SubmitButton name="status" value="CONFIRMED" className="btn-primary" pendingText="...">{match.access === "OPEN" ? "Quero jogar" : "Pedir vaga"}</SubmitButton>
+            </ActionForm>
+            <Link href="/jogar" className="mt-3 block text-center text-xs text-fg/45">← Ver outras partidas</Link>
           </div>
         ) : me ? (
           <div className="card p-5">
