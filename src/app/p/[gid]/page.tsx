@@ -50,19 +50,15 @@ export default async function Dashboard({ params }: { params: Promise<{ gid: str
 
   return (
     <div className="flex flex-col gap-4 pt-1">
-      {isOrganizer ? (
-        <div className="px-1 pt-2">
-          <p className="text-xs font-bold uppercase tracking-widest text-accent">Painel do organizador</p>
-          <h1 className="text-4xl">{group.name}</h1>
-          <p className="text-sm text-fg/50">
-            {[group.weekday != null ? WEEKDAYS[group.weekday] : null, group.time, group.location].filter(Boolean).join(" · ")} · {playerCount} jogadores
-          </p>
-        </div>
-      ) : (
-        <div className="px-1 pt-2">
+      <div className="px-1 pt-2">
+        <div className="flex items-center gap-2">
           <h1 className="text-4xl">E aí, {(me.nickname || user.name).split(" ")[0]}</h1>
+          {isOrganizer && <span className="chip bg-accent/15 text-accent">Organizador</span>}
         </div>
-      )}
+        <p className="text-sm text-fg/50">
+          {[group.weekday != null ? WEEKDAYS[group.weekday] : null, group.time, group.location].filter(Boolean).join(" · ")}{group.weekday != null || group.time || group.location ? " · " : ""}{playerCount} jogadores
+        </p>
+      </div>
 
       {isOrganizer && (
         <div className="grid grid-cols-4 gap-2 text-center text-[11px] font-semibold text-fg/70">
@@ -125,12 +121,7 @@ export default async function Dashboard({ params }: { params: Promise<{ gid: str
             </div>
             {count(["WAITLIST"]) > 0 && <p className="mt-2 text-center text-xs text-white/60">+ {count(["WAITLIST"])} na lista de espera</p>}
           </Link>
-          {isOrganizer ? (
-            <div className="grid grid-cols-2 gap-2 bg-black/20 p-3 text-sm font-semibold">
-              <Link href={`/p/${gid}/partidas/${next.id}?aba=presenca`} className="btn bg-white/10 py-2.5 text-white hover:bg-white/20">Ver presença</Link>
-              <Link href={`/p/${gid}/partidas/${next.id}?aba=times`} className="btn bg-white/10 py-2.5 text-white hover:bg-white/20">{next.status === "DRAWN" ? "Ver times" : "Sortear times"}</Link>
-            </div>
-          ) : next.status === "SCHEDULED" ? (
+          {next.status === "SCHEDULED" ? (
             <div className="grid grid-cols-3 gap-2 bg-black/20 p-3">
               {([
                 ["CONFIRMED", "Vou"],
@@ -145,11 +136,17 @@ export default async function Dashboard({ params }: { params: Promise<{ gid: str
                 );
               })}
             </div>
-          ) : (
+          ) : isOrganizer ? null : (
             <Link href={`/p/${gid}/partidas/${next.id}?aba=times`} className="flex items-center justify-between bg-black/20 px-5 py-3 text-sm font-semibold">
               {next.status === "DRAWN" ? "Times sorteados. Ver times" : "Lista fechada. Ver lista"}
               <ArrowRight size={16} />
             </Link>
+          )}
+          {isOrganizer && (
+            <div className={`grid grid-cols-2 gap-2 bg-black/20 p-3 text-sm font-semibold ${next.status === "SCHEDULED" ? "pt-0" : ""}`}>
+              <Link href={`/p/${gid}/partidas/${next.id}?aba=presenca`} className="btn bg-white/10 py-2.5 text-white hover:bg-white/20">Ver presença</Link>
+              <Link href={`/p/${gid}/partidas/${next.id}?aba=times`} className="btn bg-white/10 py-2.5 text-white hover:bg-white/20">{next.status === "DRAWN" ? "Ver times" : "Sortear times"}</Link>
+            </div>
           )}
           {isOrganizer && (
             <div className="px-3 pt-3">
@@ -174,7 +171,8 @@ export default async function Dashboard({ params }: { params: Promise<{ gid: str
         </div>
       )}
 
-      {isOrganizer ? <OrganizerFinance /> : <MyFinanceCard />}
+      <MyFinanceCard />
+      {isOrganizer && <OrganizerFinance />}
 
       {last && (
         <Link href={`/p/${gid}/partidas/${last.id}?aba=resultado`} className="card block">
@@ -192,7 +190,7 @@ export default async function Dashboard({ params }: { params: Promise<{ gid: str
         </Link>
       )}
 
-      {(topScorer?.goals || (myStats && !isOrganizer)) && (
+      {(topScorer?.goals || myStats) && (
         <div className="grid grid-cols-2 gap-3">
           {topScorer && topScorer.goals > 0 && (
             <Link href={`/p/${gid}/rankings?r=artilharia`} className="card block">
@@ -201,7 +199,7 @@ export default async function Dashboard({ params }: { params: Promise<{ gid: str
               <p className="text-sm text-fg/50">{topScorer.goals} gols na temporada</p>
             </Link>
           )}
-          {myStats && !isOrganizer && (
+          {myStats && (
             <Link href={`/p/${gid}/jogadores/${me.id}`} className="card block">
               <p className="text-xs font-bold uppercase text-fg/45">Você na temporada</p>
               <p className="mt-1 font-extrabold">{myStats.games} jogos · {myStats.goals} gols</p>

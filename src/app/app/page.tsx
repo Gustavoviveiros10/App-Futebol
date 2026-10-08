@@ -61,7 +61,7 @@ export default async function MyGroups({ searchParams }: { searchParams: Promise
         <div className="flex flex-col gap-2">
           {sec.list.map((m) => (
             <div key={m.id} className="flex flex-col gap-2">
-            <Link href={m.role === "ORGANIZER" ? `/p/${m.groupId}/modo/organizador` : `/p/${m.groupId}`} prefetch={false} className="card flex items-center gap-4 transition hover:bg-surface-2">
+            <Link href={`/p/${m.groupId}`} prefetch={false} className="card flex items-center gap-4 transition hover:bg-surface-2">
               <div className="pitch-gradient flex h-12 w-12 shrink-0 items-center justify-center rounded-xl">
                 <span className="font-display text-xl font-bold text-accent">{m.group.name.slice(0, 1).toUpperCase()}</span>
               </div>

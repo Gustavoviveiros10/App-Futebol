@@ -24,7 +24,16 @@ export async function sendMail(to: string, subject: string, text: string) {
   return { delivered: res.ok };
 }
 
+/** Endereço público do app para links (convite, WhatsApp, senha). */
 export function appUrl(path = "") {
-  const base = process.env.APP_URL ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+  const env = process.env;
+  const https = (h?: string) => (h ? (/^https?:\/\//.test(h) ? h : `https://${h}`) : undefined);
+  // em teste (preview) o link precisa abrir este mesmo deploy, não o de produção, que pode não ter as telas novas
+  const base =
+    (env.VERCEL_ENV === "preview" ? https(env.VERCEL_BRANCH_URL) : undefined) ??
+    https(env.APP_URL?.trim()) ??
+    https(env.VERCEL_PROJECT_PRODUCTION_URL) ??
+    https(env.VERCEL_URL) ??
+    "http://localhost:3000";
   return base.replace(/\/$/, "") + path;
 }

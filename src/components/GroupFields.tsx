@@ -3,6 +3,7 @@ import { WEEKDAYS, addToTime, centsToInput } from "@/lib/format";
 import { ACCESS, FORMATS, LEVELS, MODALITIES } from "@/lib/labels";
 import { Choice, Pills } from "./Choice";
 import { PlaceField } from "./PlaceField";
+import { TimeRange } from "./TimeRange";
 
 type G = {
   name?: string;
@@ -40,16 +41,7 @@ export function GroupFields({ g = {}, withDueDay = false }: { g?: G; withDueDay?
           ))}
         </select>
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="label" htmlFor="time">Início</label>
-          <input className="input" id="time" name="time" type="time" defaultValue={g.time ?? "20:00"} />
-        </div>
-        <div>
-          <label className="label" htmlFor="endTime">Término</label>
-          <input className="input" id="endTime" name="endTime" type="time" defaultValue={addToTime(g.time ?? "20:00", g.durationMin ?? 60)} />
-        </div>
-      </div>
+      <TimeRange start={g.time ?? "20:00"} end={addToTime(g.time ?? "20:00", g.durationMin ?? 60)} />
       <Pills name="modality" legend="Modalidade" value={g.modality ?? "SOCIETY"} options={MODALITIES} />
       <Pills name="level" legend="Nível da turma" value={g.level ?? "INTERMEDIATE"} options={LEVELS} />
       <Choice name="format" legend="Formato da pelada" value={g.format ?? "TWO_TEAMS"} options={FORMATS} />

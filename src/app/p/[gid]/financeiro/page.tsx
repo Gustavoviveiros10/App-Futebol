@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { FINANCE_PREMIUM, groupPremium } from "@/lib/features";
+import { PremiumLock } from "@/components/PremiumLock";
 import { ChevronLeft, ChevronRight, Wallet } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
@@ -37,10 +39,18 @@ const METHODS = [
 export default async function FinancePage({ params, searchParams }: { params: Promise<{ gid: string }>; searchParams: Promise<{ mes?: string; f?: Filter }> }) {
   const { gid } = await params;
   const sp = await searchParams;
-  const { group, isOrganizer, player: me } = await getMembership(gid);
+  const { group, isOrganizer, isOwner, player: me } = await getMembership(gid);
   const tz = group.timezone;
 
   if (!isOrganizer) return <MyFinance />;
+  const premium = await groupPremium(gid);
+  if (!premium && FINANCE_PREMIUM === "all")
+    return (
+      <>
+        <PageHeader title="Financeiro" />
+        <PremiumLock isOwner={isOwner} title="Financeiro da pelada" text="Cobre mensalidades e avulsos, veja quem está em dia, lance despesas e acompanhe o caixa da pelada." />
+      </>
+    );
 
   const current = monthKey(new Date(), tz);
   const key = sp.mes && /^\d{4}-\d{2}$/.test(sp.mes) ? sp.mes : current;
@@ -87,6 +97,8 @@ export default async function FinancePage({ params, searchParams }: { params: Pr
         <div className="card p-3"><p className="text-lg font-extrabold">{summary.monthlyOk}/{summary.monthlyCount}</p><p className="text-xs text-fg/50">Mensalistas em dia</p></div>
       </div>
 
+      {premium ? (
+        <>
       <div className="card mb-4 grid grid-cols-3 gap-2 text-center">
         <div><p className="text-lg font-extrabold text-accent">{money(summary.received)}</p><p className="text-xs text-fg/50">Entradas</p></div>
         <div><p className="text-lg font-extrabold text-red-400">{money(exp.total)}</p><p className="text-xs text-fg/50">Saídas</p></div>
@@ -167,6 +179,10 @@ export default async function FinancePage({ params, searchParams }: { params: Pr
           </div>
         </details>
       </div>
+        </>
+      ) : (
+        <PremiumLock className="mb-4" isOwner={isOwner} title="Caixa da pelada" text="Lance despesas (quadra, bola, coletes), guarde comprovantes e veja entradas, saídas e o saldo do mês." />
+      )}
 
       {!summary.monthlyGenerated && summary.monthlyCount > 0 && (
         <form action={generateCharges.bind(null, gid, key)} className="card mb-4 bg-gold/10 ring-gold/30">

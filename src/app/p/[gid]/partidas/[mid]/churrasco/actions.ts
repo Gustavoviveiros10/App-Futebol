@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireMember } from "@/lib/tenancy";
+import { requirePremium } from "@/lib/features";
 import { parseMoney } from "@/lib/format";
 import { type ActionState } from "@/lib/actions";
 
@@ -20,6 +21,7 @@ const path = (gid: string, mid: string) => `/p/${gid}/partidas/${mid}/churrasco`
 
 export async function startBbq(gid: string, mid: string) {
   await requireMember(gid);
+  await requirePremium(gid);
   const match = await db.match.findFirst({
     where: { id: mid, groupId: gid },
     include: { players: { where: { OR: [{ played: true }, { status: "CONFIRMED" }] }, include: { player: true }, orderBy: { player: { name: "asc" } } } },

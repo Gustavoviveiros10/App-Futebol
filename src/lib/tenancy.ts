@@ -1,12 +1,8 @@
 import "server-only";
 import { cache } from "react";
 import { notFound } from "next/navigation";
-import { cookies } from "next/headers";
 import { db } from "./db";
 import { requireUser } from "./auth";
-
-export type ViewMode = "organizador" | "jogador";
-export const VIEW_COOKIE = "jc_modo";
 
 /**
  * Vínculo do usuário logado com uma pelada. Toda rota e ação dentro de
@@ -21,15 +17,13 @@ export const getMembership = cache(async (groupId: string) => {
   if (!player) notFound();
   // dono ou administrador: os dois cuidam das partidas e do financeiro
   const canManage = player.role === "ORGANIZER";
-  // quem organiza pode olhar o app como jogador (só muda a tela, não a permissão)
-  const viewMode: ViewMode = canManage && (await cookies()).get(VIEW_COOKIE)?.value === "jogador" ? "jogador" : canManage ? "organizador" : "jogador";
   return {
     user,
     player,
     group: player.group,
     canManage,
-    viewMode,
-    isOrganizer: viewMode === "organizador",
+    // uma tela só para todos: quem organiza só vê mais botões
+    isOrganizer: canManage,
     isOwner: player.group.ownerId === user.id,
   };
 });

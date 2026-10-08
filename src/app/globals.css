@@ -152,3 +152,8 @@ option {
 .jc-pin.on { outline: 2px solid #fff; }
 .jc-me { width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: #4f8cff; border: 2px solid #fff; box-shadow: 0 0 0 8px rgb(79 140 255 / 0.18); }
 .jc-dot { width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; background: var(--color-accent); border: 3px solid var(--color-bg); box-shadow: 0 0 0 6px color-mix(in oklab, var(--color-accent) 25%, transparent); }
+
+/* campo de horário compacto (sem o espaço vazio do controle nativo) */
+.input-time::-webkit-calendar-picker-indicator { display: none; }
+.input-time::-webkit-datetime-edit { padding: 0; }
+.input-time::-webkit-date-and-time-value { text-align: center; }

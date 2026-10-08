@@ -3,11 +3,10 @@ import { Bell, ChevronDown, Settings } from "lucide-react";
 import { getMembership } from "@/lib/tenancy";
 import { db } from "@/lib/db";
 import { BottomNav } from "@/components/BottomNav";
-import { setViewMode } from "./view-actions";
 
 export default async function GroupLayout({ children, params }: { children: React.ReactNode; params: Promise<{ gid: string }> }) {
   const { gid } = await params;
-  const { group, isOrganizer, canManage, viewMode, user } = await getMembership(gid);
+  const { group, isOrganizer, user } = await getMembership(gid);
   const unread = await db.notification.count({ where: { userId: user.id, groupId: gid, readAt: null } });
 
   return (
@@ -30,19 +29,6 @@ export default async function GroupLayout({ children, params }: { children: Reac
           <Settings size={22} />
         </Link>
       </div>
-      {canManage && (
-        <div className="px-4 pb-2">
-          <div className="grid grid-cols-2 gap-1 rounded-xl bg-surface p-1 text-sm font-semibold ring-1 ring-fg/[0.07]" role="group" aria-label="Ver o app como">
-            {(["organizador", "jogador"] as const).map((m) => (
-              <form key={m} action={setViewMode.bind(null, gid, m)}>
-                <button aria-pressed={viewMode === m} className={`w-full rounded-lg py-1.5 ${viewMode === m ? (m === "organizador" ? "bg-accent text-bg" : "bg-fg/10 text-fg") : "text-fg/50"}`}>
-                  {m === "organizador" ? "Organizador" : "Jogador"}
-                </button>
-              </form>
-            ))}
-          </div>
-        </div>
-      )}
       <main className="px-4 pb-28">{children}</main>
       <BottomNav gid={gid} />
     </div>

@@ -3,6 +3,7 @@ import { addToTime, centsToInput } from "@/lib/format";
 import { ACCESS, FORMATS } from "@/lib/labels";
 import { Choice } from "./Choice";
 import { PlaceField } from "./PlaceField";
+import { TimeRange } from "./TimeRange";
 
 type V = { date: string; time: string; location?: string | null; address?: string | null; lat?: number | null; lng?: number | null; durationMin?: number; singleFeeCents?: number; maxPlayers?: number | null; teamsCount?: number; notes?: string | null; format?: GameFormat; access?: MatchAccess };
 
@@ -13,16 +14,7 @@ export function MatchFields({ v }: { v: V }) {
         <label className="label" htmlFor="date">Data</label>
         <input className="input" id="date" name="date" type="date" defaultValue={v.date} required />
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="label" htmlFor="time">Início</label>
-          <input className="input" id="time" name="time" type="time" defaultValue={v.time} required />
-        </div>
-        <div>
-          <label className="label" htmlFor="endTime">Término</label>
-          <input className="input" id="endTime" name="endTime" type="time" defaultValue={addToTime(v.time, v.durationMin ?? 60)} required />
-        </div>
-      </div>
+      <TimeRange start={v.time} end={addToTime(v.time, v.durationMin ?? 60)} required />
       <PlaceField v={v} />
       <div>
         <label className="label" htmlFor="singleFee">Valor avulso (R$)</label>

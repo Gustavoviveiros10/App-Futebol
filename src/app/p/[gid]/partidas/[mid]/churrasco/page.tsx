@@ -8,13 +8,15 @@ import { PageHeader } from "@/components/ui";
 import { ActionForm, SubmitButton } from "@/components/forms";
 import { AutoSubmitCheckbox } from "@/components/AutoSubmitCheckbox";
 import { WhatsAppButton } from "@/components/WhatsAppButton";
+import { groupPremium } from "@/lib/features";
+import { PremiumLock } from "@/components/PremiumLock";
 import { addGuest, addItem, removeGuest, removeItem, startBbq, togglePerson } from "./actions";
 
 export const metadata = { title: "Dividir o churrasco" };
 
 export default async function BbqPage({ params }: { params: Promise<{ gid: string; mid: string }> }) {
   const { gid, mid } = await params;
-  const { group } = await getMembership(gid);
+  const { group, isOwner } = await getMembership(gid);
   const match = await db.match.findFirst({
     where: { id: mid, groupId: gid },
     include: { bbq: { include: { people: { orderBy: [{ guest: "asc" }, { name: "asc" }] }, items: { orderBy: { createdAt: "asc" } } } } },
@@ -23,6 +25,14 @@ export default async function BbqPage({ params }: { params: Promise<{ gid: strin
   const tz = group.timezone;
   const subtitle = `Depois do jogo de ${weekdayLong(match.date, tz).toLowerCase()}, ${fmtDayMonth(match.date, tz)}`;
   const back = `/p/${gid}/partidas/${mid}`;
+
+  if (!match.bbq && !(await groupPremium(gid)))
+    return (
+      <>
+        <PageHeader title="Dividir o churrasco" subtitle={subtitle} back={back} />
+        <PremiumLock isOwner={isOwner} title="Dividir o churrasco" text="Lance o que cada um pagou na resenha e o app diz quem paga quem, com o mínimo de transferências." />
+      </>
+    );
 
   if (!match.bbq)
     return (
