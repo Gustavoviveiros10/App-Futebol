@@ -452,6 +452,7 @@ model Expense {
   category    ExpenseCategory @default(OTHER)
   date        DateTime
   recurring   Boolean         @default(false) // repete todo mês
+  receipt     String? // foto do comprovante (data URL comprimida)
   createdAt   DateTime        @default(now())
   group       Group           @relation(fields: [groupId], references: [id], onDelete: Cascade)
 

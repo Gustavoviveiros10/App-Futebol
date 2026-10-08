@@ -106,6 +106,7 @@ CREATE TABLE "Expense" (
     "category" "ExpenseCategory" NOT NULL DEFAULT 'OTHER',
     "date" TIMESTAMP(3) NOT NULL,
     "recurring" BOOLEAN NOT NULL DEFAULT false,
+    "receipt" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "Expense_pkey" PRIMARY KEY ("id")

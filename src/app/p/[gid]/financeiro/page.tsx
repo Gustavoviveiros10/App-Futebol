@@ -10,7 +10,9 @@ import { Avatar, Empty, PageHeader } from "@/components/ui";
 import { FinanceBadge } from "@/components/FinanceBadge";
 import { ActionForm, ConfirmButton, SubmitButton } from "@/components/forms";
 import { WhatsAppButton } from "@/components/WhatsAppButton";
-import { cancelPayment, createCharge, generateCharges, markPaid, markPending } from "./actions";
+import { cancelPayment, createCharge, createExpense, deleteExpense, generateCharges, markPaid, markPending } from "./actions";
+import { CATEGORIES, monthExpenses } from "@/lib/expenses";
+import { ReceiptInput } from "@/components/ReceiptInput";
 
 export const metadata = { title: "Financeiro" };
 
@@ -44,7 +46,8 @@ export default async function FinancePage({ params, searchParams }: { params: Pr
   const key = sp.mes && /^\d{4}-\d{2}$/.test(sp.mes) ? sp.mes : current;
   const filter: Filter = FILTERS.some(([k]) => k === sp.f) ? sp.f! : "todos";
   const { start, end } = monthRange(key, tz);
-  const summary = await financeSummary(gid, key, tz);
+  const [summary, exp] = await Promise.all([financeSummary(gid, key, tz), monthExpenses(gid, key, tz)]);
+  const balance = summary.received - exp.total;
 
   const where: Prisma.PaymentWhereInput = { groupId: gid, status: { not: "CANCELED" } };
   if (filter === "atrasados") Object.assign(where, { status: "PENDING", dueDate: { lt: new Date() } });
@@ -82,6 +85,87 @@ export default async function FinancePage({ params, searchParams }: { params: Pr
         <div className="card p-3"><p className="text-lg font-extrabold text-gold">{money(summary.pending)}</p><p className="text-xs text-fg/50">Pendente</p></div>
         <div className="card p-3"><p className="text-lg font-extrabold text-red-400">{money(summary.overdue)}</p><p className="text-xs text-fg/50">Atrasado (total)</p></div>
         <div className="card p-3"><p className="text-lg font-extrabold">{summary.monthlyOk}/{summary.monthlyCount}</p><p className="text-xs text-fg/50">Mensalistas em dia</p></div>
+      </div>
+
+      <div className="card mb-4 grid grid-cols-3 gap-2 text-center">
+        <div><p className="text-lg font-extrabold text-accent">{money(summary.received)}</p><p className="text-xs text-fg/50">Entradas</p></div>
+        <div><p className="text-lg font-extrabold text-red-400">{money(exp.total)}</p><p className="text-xs text-fg/50">Saídas</p></div>
+        <div><p className={`text-lg font-extrabold ${balance < 0 ? "text-red-400" : ""}`}>{money(balance)}</p><p className="text-xs text-fg/50">Saldo</p></div>
+      </div>
+
+      <div className="card mb-4">
+        <div className="flex items-baseline justify-between">
+          <p className="section-title px-0">Despesas do mês</p>
+          <span className="text-sm font-bold">{money(exp.total)}</span>
+        </div>
+        {exp.total > 0 && (
+          <>
+            <div className="mb-2 flex h-2.5 overflow-hidden rounded-full bg-fg/[0.06]">
+              {exp.byCategory.map((c) => (
+                <div key={c.category} className={CATEGORIES[c.category].color} style={{ width: `${(c.cents / exp.total) * 100}%` }} />
+              ))}
+            </div>
+            <div className="mb-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-fg/60">
+              {exp.byCategory.map((c) => (
+                <span key={c.category} className="flex items-center gap-1"><i className={`h-2 w-2 rounded-full ${CATEGORIES[c.category].color}`} />{CATEGORIES[c.category].label} {money(c.cents)}</span>
+              ))}
+            </div>
+          </>
+        )}
+        {exp.list.length === 0 && <p className="mb-3 text-sm text-fg/50">Nenhuma despesa lançada neste mês.</p>}
+        <div className="divide-y divide-fg/[0.07]">
+          {exp.list.map((e) => (
+            <details key={e.id} className="group">
+              <summary className="flex cursor-pointer list-none items-center gap-3 py-2.5">
+                <i className={`h-2.5 w-2.5 shrink-0 rounded-full ${CATEGORIES[e.category].color}`} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold">{e.description}</p>
+                  <p className="text-xs text-fg/50">{CATEGORIES[e.category].label} · {e.recurring ? "todo mês" : fmtDate(e.date, tz).slice(0, 5)}{e.receipt ? " · com comprovante" : ""}</p>
+                </div>
+                <span className="text-sm font-bold">{money(e.amountCents)}</span>
+              </summary>
+              <div className="flex flex-col gap-2 pb-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                {e.receipt && <img src={e.receipt} alt={`Comprovante: ${e.description}`} className="max-h-64 w-full rounded-xl object-contain" />}
+                <form action={deleteExpense.bind(null, gid, e.id)}>
+                  <ConfirmButton className="btn-ghost btn-sm w-full text-red-400" message={e.recurring ? "Excluir esta despesa fixa? Ela some de todos os meses." : "Excluir esta despesa?"}>Excluir despesa</ConfirmButton>
+                </form>
+              </div>
+            </details>
+          ))}
+        </div>
+        <details className="mt-2">
+          <summary className="btn-ghost btn-sm w-full cursor-pointer list-none">+ Lançar despesa</summary>
+          <div className="mt-3">
+            <ActionForm action={createExpense.bind(null, gid)} resetOnSuccess>
+              <div>
+                <label className="label" htmlFor="exp-desc">Descrição</label>
+                <input className="input" id="exp-desc" name="description" placeholder="Aluguel da quadra, bola nova..." required />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label" htmlFor="exp-amount">Valor (R$)</label>
+                  <input className="input" id="exp-amount" name="amount" inputMode="decimal" placeholder="350,00" required />
+                </div>
+                <div>
+                  <label className="label" htmlFor="exp-date">Data</label>
+                  <input className="input" id="exp-date" name="date" type="date" defaultValue={utcToZonedInput(new Date(), tz).date} required />
+                </div>
+              </div>
+              <div>
+                <label className="label" htmlFor="exp-cat">Categoria</label>
+                <select className="input" id="exp-cat" name="category" defaultValue="COURT">
+                  {Object.entries(CATEGORIES).map(([k, c]) => <option key={k} value={k}>{c.label}</option>)}
+                </select>
+              </div>
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input type="checkbox" name="recurring" className="h-5 w-5 accent-accent" /> Repete todo mês
+              </label>
+              <ReceiptInput name="receipt" />
+              <SubmitButton>Lançar despesa</SubmitButton>
+            </ActionForm>
+          </div>
+        </details>
       </div>
 
       {!summary.monthlyGenerated && summary.monthlyCount > 0 && (
@@ -185,7 +269,7 @@ export default async function FinancePage({ params, searchParams }: { params: Pr
             </div>
             <div>
               <label className="label" htmlFor="description">Descrição</label>
-              <input className="input" id="description" name="description" placeholder="Churrasco, colete, aluguel extra..." required />
+              <input className="input" id="description" name="description" placeholder="Colete, aluguel extra..." required />
             </div>
             <label className="flex items-center gap-2 text-sm font-medium">
               <input type="checkbox" name="paid" className="h-5 w-5 accent-accent" /> Já foi pago

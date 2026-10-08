@@ -92,3 +92,33 @@ export async function createCharge(gid: string, _: ActionState, form: FormData):
   revalidatePath(`/p/${gid}`, "layout");
   return { ok: paid ? "Pagamento registrado." : "Cobrança criada." };
 }
+
+const expenseSchema = z.object({
+  description: z.string().trim().min(2, "Descreva a despesa.").max(80),
+  amount: z.string().min(1, "Informe o valor."),
+  category: z.enum(["COURT", "EQUIPMENT", "FOOD", "DRINK", "REFEREE", "OTHER"]).default("OTHER"),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida."),
+  recurring: z.string().optional(),
+  receipt: z.string().startsWith("data:image/").max(400_000, "Foto muito grande.").optional(),
+});
+
+/** Saída de dinheiro da pelada (quadra, bola, comida...). */
+export async function createExpense(gid: string, _: ActionState, form: FormData): Promise<ActionState> {
+  const { group } = await requireOrganizer(gid);
+  const parsed = expenseSchema.safeParse(formObject(form));
+  if (!parsed.success) return zodError(parsed.error.issues);
+  const d = parsed.data;
+  const amountCents = parseMoney(d.amount);
+  if (amountCents <= 0) return { error: "Valor inválido." };
+  await db.expense.create({
+    data: { groupId: gid, description: d.description, amountCents, category: d.category, date: zonedToUtc(d.date, "12:00", group.timezone), recurring: d.recurring === "on", receipt: d.receipt },
+  });
+  revalidatePath(`/p/${gid}`, "layout");
+  return { ok: "Despesa lançada." };
+}
+
+export async function deleteExpense(gid: string, id: string) {
+  await requireOrganizer(gid);
+  await db.expense.deleteMany({ where: { id, groupId: gid } });
+  revalidatePath(`/p/${gid}`, "layout");
+}
