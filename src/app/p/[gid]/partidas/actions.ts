@@ -16,6 +16,7 @@ import { TEAM_PRESETS, drawTeams as runDraw, playerStrength, type DrawMode } fro
 import { groupStats } from "@/lib/stats";
 import { chargeMatchPlayers } from "@/lib/finance";
 import { ALL_TAGS } from "@/lib/ratings";
+import { findOrCreateGuestPlayer } from "@/lib/guest";
 
 const attendance = z.enum(["CONFIRMED", "DECLINED", "MAYBE", "PENDING", "WAITLIST"]);
 
@@ -375,9 +376,9 @@ export async function answerJoinRequest(gid: string, mid: string, rid: string, a
   if (!approve) {
     await db.joinRequest.update({ where: { id: rid }, data: { status: "REJECTED" } });
   } else {
-    const player = await db.player.create({ data: { groupId: gid, name: req.name, phone: req.phone, billingType: "PER_MATCH" } });
-    await setAttendance(mid, player.id, "CONFIRMED");
-    await db.joinRequest.update({ where: { id: rid }, data: { status: "APPROVED", playerId: player.id } });
+    const playerId = await findOrCreateGuestPlayer(gid, req.name, req.phone);
+    await setAttendance(mid, playerId, "CONFIRMED");
+    await db.joinRequest.update({ where: { id: rid }, data: { status: "APPROVED", playerId } });
   }
   refresh(gid);
 }

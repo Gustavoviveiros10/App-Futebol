@@ -17,7 +17,7 @@ export function StarInput({ name, label, defaultValue, size = 28, required }: { 
             role="radio"
             aria-checked={v === i}
             aria-label={`${i} estrela${i > 1 ? "s" : ""}`}
-            onClick={() => setV(v === i ? 0 : i)}
+            onClick={() => setV(i)}
             className="p-0.5 transition active:scale-90"
           >
             <StarIcon size={size} fill={v >= i ? 1 : 0} />

@@ -26,3 +26,18 @@ export async function rememberPlayer(groupId: string, playerId: string) {
 export async function forgetPlayer(groupId: string) {
   (await cookies()).delete(cookieName(groupId));
 }
+
+/** Quem chega pelo link ou pela busca: reaproveita o jogador com o mesmo WhatsApp, senão cria. */
+export async function findOrCreateGuestPlayer(groupId: string, name: string, phone?: string | null) {
+  const digits = phone?.replace(/\D/g, "") ?? "";
+  if (digits.length >= 8) {
+    const same = await db.player.findMany({ where: { groupId, phone: { not: null } }, select: { id: true, phone: true, active: true } });
+    const hit = same.find((p) => p.phone!.replace(/\D/g, "").endsWith(digits.slice(-8)));
+    if (hit) {
+      if (!hit.active) await db.player.update({ where: { id: hit.id }, data: { active: true } });
+      return hit.id;
+    }
+  }
+  const p = await db.player.create({ data: { groupId, name, phone: phone || null, billingType: "PER_MATCH" } });
+  return p.id;
+}

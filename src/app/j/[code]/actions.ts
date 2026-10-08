@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { setAttendance } from "@/lib/attendance";
-import { forgetPlayer, rememberPlayer } from "@/lib/guest";
+import { findOrCreateGuestPlayer, forgetPlayer, rememberPlayer } from "@/lib/guest";
 import { notifyGroupOrganizers } from "@/lib/notify";
 import { type ActionState } from "@/lib/actions";
 
@@ -41,8 +41,7 @@ export async function guestRespond(code: string, _: ActionState, form: FormData)
       await notifyGroupOrganizers(match.groupId, { type: "JOIN_REQUEST", title: `🙋 ${n.data.name} pediu vaga na partida`, link: `/p/${match.groupId}/partidas/${match.id}` });
       redirect(`/j/${code}?pedido=1`);
     }
-    const p = await db.player.create({ data: { groupId: match.groupId, name: n.data.name, phone: n.data.phone ?? null, billingType: "PER_MATCH" } });
-    playerId = p.id;
+    playerId = await findOrCreateGuestPlayer(match.groupId, n.data.name, n.data.phone);
   }
   await setAttendance(match.id, playerId, s.data);
   await rememberPlayer(match.groupId, playerId);
