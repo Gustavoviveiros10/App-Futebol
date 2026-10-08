@@ -2,8 +2,9 @@ import type { GameFormat, MatchAccess } from "@prisma/client";
 import { addToTime, centsToInput } from "@/lib/format";
 import { ACCESS, FORMATS } from "@/lib/labels";
 import { Choice } from "./Choice";
+import { PlaceField } from "./PlaceField";
 
-type V = { date: string; time: string; location?: string | null; durationMin?: number; singleFeeCents?: number; maxPlayers?: number | null; teamsCount?: number; notes?: string | null; format?: GameFormat; access?: MatchAccess };
+type V = { date: string; time: string; location?: string | null; address?: string | null; lat?: number | null; lng?: number | null; durationMin?: number; singleFeeCents?: number; maxPlayers?: number | null; teamsCount?: number; notes?: string | null; format?: GameFormat; access?: MatchAccess };
 
 export function MatchFields({ v }: { v: V }) {
   return (
@@ -22,10 +23,7 @@ export function MatchFields({ v }: { v: V }) {
           <input className="input" id="endTime" name="endTime" type="time" defaultValue={addToTime(v.time, v.durationMin ?? 60)} required />
         </div>
       </div>
-      <div>
-        <label className="label" htmlFor="location">Local</label>
-        <input className="input" id="location" name="location" defaultValue={v.location ?? ""} placeholder="Arena X" />
-      </div>
+      <PlaceField v={v} />
       <div>
         <label className="label" htmlFor="singleFee">Valor avulso (R$)</label>
         <input className="input" id="singleFee" name="singleFee" inputMode="decimal" defaultValue={centsToInput(v.singleFeeCents ?? 0)} />

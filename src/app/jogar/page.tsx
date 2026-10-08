@@ -34,7 +34,7 @@ export default async function Discover() {
     orderBy: { date: "asc" },
     take: 200,
     include: {
-      group: { select: { name: true, location: true, modality: true, level: true, timezone: true, owner: { select: { name: true } }, _count: { select: { matches: { where: { status: "FINISHED" } } } } } },
+      group: { select: { name: true, location: true, lat: true, lng: true, modality: true, level: true, timezone: true, owner: { select: { name: true } }, _count: { select: { matches: { where: { status: "FINISHED" } } } } } },
       _count: { select: { players: { where: { status: "CONFIRMED" } } } },
     },
   });
@@ -43,6 +43,9 @@ export default async function Discover() {
     .filter((m) => !m.maxPlayers || m._count.players < m.maxPlayers)
     .map((m) => {
       const { date, time } = utcToZonedInput(m.date, m.group.timezone);
+      // sem ponto próprio, a partida usa o da pelada se for no mesmo local
+      const sameAsGroup = !m.location || m.location === m.group.location;
+      const lat = m.lat ?? (sameAsGroup ? m.group.lat : null), lng = m.lng ?? (sameAsGroup ? m.group.lng : null);
       return {
         code: m.shareCode!,
         day: date,
@@ -58,6 +61,8 @@ export default async function Discover() {
         feeCents: m.singleFeeCents,
         confirmed: m._count.players,
         max: m.maxPlayers,
+        lat,
+        lng,
       };
     });
 

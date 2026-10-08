@@ -2,7 +2,11 @@
 
 import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
+import { fmtKm, km } from "@/lib/map";
 import { MapPin } from "lucide-react";
+
+const MatchesMap = dynamic(() => import("./MatchesMap").then((m) => m.MatchesMap), { ssr: false, loading: () => <div className="absolute inset-0 animate-pulse bg-surface" /> });
 
 export type ExploreDay = { key: string; short: string; num: number; label: string; tag: string };
 export type ExploreMatch = {
@@ -20,19 +24,13 @@ export type ExploreMatch = {
   feeCents: number;
   confirmed: number;
   max: number | null;
+  lat: number | null;
+  lng: number | null;
 };
 
 const ACC_LABEL = { aberta: "Aberta", pedido: "Com aprovação", restrita: "Restrita" } as const;
 const ACC_CHIP = { aberta: "bg-accent/15 text-accent", pedido: "bg-gold/15 text-gold", restrita: "bg-fg/10 text-fg/75" } as const;
 const PIN_BG = { aberta: "bg-accent after:border-t-accent", pedido: "bg-gold after:border-t-gold", restrita: "bg-[#c9ced8] after:border-t-[#c9ced8]" } as const;
-
-/** Posição estável no mapa ilustrativo a partir do nome do local (ainda não guardamos coordenadas). */
-function spot(place: string, i: number) {
-  let h = 2166136261;
-  for (const c of place.toLowerCase()) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
-  const x = 12 + ((h >>> 0) % 76), y = 14 + ((h >>> 8) % 70);
-  return { x: Math.min(90, x + (i % 3) * 6), y: Math.min(92, y + Math.floor(i / 3) * 7) };
-}
 
 const sel = "w-full cursor-pointer appearance-none border-0 bg-transparent p-0 pr-5 text-[14.5px] font-bold text-fg outline-none";
 const selBg = {
@@ -53,7 +51,7 @@ function Select({ label, value, onChange, options }: { label: string; value: str
   );
 }
 
-function Card({ m, tag }: { m: ExploreMatch; tag: string }) {
+function Card({ m, tag, dist }: { m: ExploreMatch; tag: string; dist?: number | null }) {
   const spots = m.max ? m.max - m.confirmed : null;
   const fill = m.max ? Math.round((m.confirmed / m.max) * 100) : 0;
   const href = m.access === "restrita" ? `/j/${m.code}` : `/jogar/${m.code}`;
@@ -69,7 +67,7 @@ function Card({ m, tag }: { m: ExploreMatch; tag: string }) {
           {m.name}
           <em className={`rounded-md px-1.5 py-0.5 text-[10.5px] font-extrabold not-italic ${ACC_CHIP[m.access]}`}>{ACC_LABEL[m.access]}</em>
         </span>
-        <span className="flex items-center gap-1 truncate text-[13px] text-fg/55"><MapPin size={13} className="shrink-0" /> {m.place}</span>
+        <span className="flex items-center gap-1 truncate text-[13px] text-fg/55"><MapPin size={13} className="shrink-0" /> {m.place}{dist != null && ` · ${fmtKm(dist)}`}</span>
         <span className="flex flex-wrap gap-1.5 text-[11.5px] font-semibold text-fg/70">
           <i className="rounded-md bg-fg/[0.06] px-1.5 py-0.5 not-italic">{m.modalityLabel}</i>
           <i className="rounded-md bg-fg/[0.06] px-1.5 py-0.5 not-italic">{m.levelLabel}</i>
@@ -95,16 +93,36 @@ export function Explore({ days, matches }: { days: ExploreDay[]; matches: Explor
   const [lvl, setLvl] = useState("");
   const [view, setView] = useState<"lista" | "mapa">("lista");
   const [pin, setPin] = useState<string | null>(null);
+  const [me, setMe] = useState<{ lat: number; lng: number } | null>(null);
+  const [geoMsg, setGeoMsg] = useState("");
   const cal = useRef<HTMLDivElement>(null);
 
   const places = useMemo(() => [...new Set(matches.map((m) => m.place))].sort((a, b) => a.localeCompare(b, "pt-BR")), [matches]);
   const current = days.find((d) => d.key === day)!;
-  const shown = matches.filter((m) => m.day === day && (!loc || m.place === loc) && (!acc || m.access === acc) && (!mod || m.modality === mod) && (!lvl || m.level === lvl));
+  const radius = loc.startsWith("km:") ? +loc.slice(3) : null;
+  const dist = (m: ExploreMatch) => (me && m.lat != null && m.lng != null ? km(me, { lat: m.lat, lng: m.lng }) : null);
+  const shown = matches
+    .filter((m) => m.day === day && (radius != null ? (dist(m) ?? Infinity) <= radius : !loc || m.place === loc) && (!acc || m.access === acc) && (!mod || m.modality === mod) && (!lvl || m.level === lvl))
+    .sort((a, b) => (radius != null ? dist(a)! - dist(b)! : 0));
+  const onMap = shown.filter((m) => m.lat != null && m.lng != null);
+
+  function chooseLoc(v: string) {
+    setPin(null);
+    setGeoMsg("");
+    if (!v.startsWith("km:") || me) return setLoc(v);
+    if (!("geolocation" in navigator)) return setGeoMsg("Seu navegador não informa a localização.");
+    setGeoMsg("Pegando sua localização...");
+    navigator.geolocation.getCurrentPosition(
+      (p) => { setMe({ lat: p.coords.latitude, lng: p.coords.longitude }); setLoc(v); setGeoMsg(""); },
+      () => setGeoMsg("Não deu para pegar sua localização. Libere a localização do navegador e tente de novo."),
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 },
+    );
+  }
   const picked = shown.find((m) => m.code === pin);
 
   return (
     <div className="flex flex-col gap-3.5">
-      <p className="flex items-center gap-1.5 text-[13px] font-semibold text-fg/70"><MapPin size={14} /> {loc || "Todos os locais"}</p>
+      <p className="flex items-center gap-1.5 text-[13px] font-semibold text-fg/70"><MapPin size={14} /> {radius != null ? `Perto de você · até ${radius} km` : loc || "Todos os locais"}</p>
       <div>
         <h1 className="text-5xl">Quero jogar <span className="text-accent">{current.label}</span></h1>
         <p className="mt-1 text-sm text-fg/55" data-testid="x-count">{shown.length} {shown.length === 1 ? "partida" : "partidas"} com vaga</p>
@@ -136,12 +154,13 @@ export function Explore({ days, matches }: { days: ExploreDay[]; matches: Explor
       </div>
 
       <div className="grid grid-cols-2 gap-2">
-        <Select label="Localização" value={loc} onChange={(v) => { setLoc(v); setPin(null); }} options={[["", "Todos os locais"], ...places.map((p) => [p, p] as [string, string])]} />
+        <Select label="Localização" value={loc} onChange={chooseLoc} options={[["", "Todos os locais"], ["km:5", "Até 5 km de mim"], ["km:10", "Até 10 km de mim"], ["km:25", "Até 25 km de mim"], ...places.map((p) => [p, p] as [string, string])]} />
         <Select label="Acesso" value={acc} onChange={(v) => { setAcc(v); setPin(null); }} options={[["", "Todos"], ["aberta", "Aberta"], ["pedido", "Com aprovação"], ["restrita", "Restrita"]]} />
         <Select label="Tipo de jogo" value={mod} onChange={(v) => { setMod(v); setPin(null); }} options={[["", "Todos"], ["SOCIETY", "Society"], ["FUTSAL", "Futsal"], ["FIELD", "Campo"]]} />
         <Select label="Nível" value={lvl} onChange={(v) => { setLvl(v); setPin(null); }} options={[["", "Todos"], ["BEGINNER", "Iniciante"], ["INTERMEDIATE", "Intermediário"], ["ADVANCED", "Avançado"]]} />
       </div>
 
+      {geoMsg && <p className="-mt-1 text-xs text-gold">{geoMsg}</p>}
       <div className="grid grid-cols-2 gap-1 rounded-xl bg-fg/[0.06] p-[3px]" role="tablist" aria-label="Ver como">
         {(["lista", "mapa"] as const).map((v) => (
           <button key={v} type="button" aria-pressed={view === v} onClick={() => setView(v)} className={`rounded-[9px] p-2 text-[13.5px] font-bold ${view === v ? "bg-surface-2 text-fg" : "text-fg/55"}`}>
@@ -151,44 +170,18 @@ export function Explore({ days, matches }: { days: ExploreDay[]; matches: Explor
       </div>
 
       {view === "mapa" ? (
-        <div className="relative h-[380px] overflow-hidden rounded-[18px] ring-1 ring-fg/[0.08]" data-testid="x-map">
-          <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" className="absolute inset-0 h-full w-full">
-            <rect width="100" height="100" fill="#101318" />
-            <path d="M60 40 Q70 52 66 66 Q62 78 70 92 L82 92 Q74 78 78 64 Q82 48 70 38 Z" fill="#14281d" />
-            <path d="M0 88 C20 80 30 70 38 56 C46 40 60 30 100 22" stroke="#16314a" strokeWidth="5" fill="none" />
-            <g stroke="#1d2129" strokeWidth="1.6" fill="none">
-              <path d="M0 40 L100 34" /><path d="M0 62 L100 70" /><path d="M30 0 L36 100" /><path d="M58 0 L52 100" /><path d="M78 0 L86 100" /><path d="M0 14 L100 8" /><path d="M12 0 L4 100" />
-            </g>
-            <g stroke="#181b22" strokeWidth=".8" fill="none">
-              <path d="M0 26 L100 20" /><path d="M0 50 L100 52" /><path d="M0 78 L100 84" /><path d="M44 0 L44 100" /><path d="M68 0 L64 100" /><path d="M20 0 L22 100" /><path d="M92 0 L96 100" />
-            </g>
-          </svg>
-          <span className="absolute left-2.5 top-2.5 rounded-md bg-bg/70 px-2 py-1 text-[10.5px] font-semibold text-fg/55">Mapa ilustrativo</span>
-          {(() => {
-            const seen: Record<string, number> = {};
-            return shown.map((m) => {
-              const i = (seen[m.place] = (seen[m.place] ?? -1) + 1);
-              const { x, y } = spot(m.place, i);
-              return (
-                <button
-                  key={m.code}
-                  type="button"
-                  aria-pressed={pin === m.code}
-                  aria-label={`${m.name} às ${m.time}`}
-                  onClick={() => setPin(m.code)}
-                  style={{ left: `${x}%`, top: `${y}%` }}
-                  className={`absolute -translate-x-1/2 -translate-y-full rounded-[9px] px-2 py-1 font-display text-sm font-bold text-bg shadow-[0_6px_14px_-6px_rgb(0_0_0/.8)] after:absolute after:-bottom-[5px] after:left-1/2 after:-ml-[5px] after:border-[5px] after:border-b-0 after:border-transparent after:content-[''] aria-pressed:z-10 aria-pressed:outline-2 aria-pressed:outline-white ${PIN_BG[m.access]}`}
-                >
-                  {m.time}
-                </button>
-              );
-            });
-          })()}
-          {picked && <div className="absolute inset-x-2.5 bottom-2.5 shadow-[0_14px_30px_-12px_rgb(0_0_0/.8)]"><Card m={picked} tag={current.tag} /></div>}
+        <div className="relative isolate h-[380px] overflow-hidden rounded-[18px] ring-1 ring-fg/[0.08]" data-testid="x-map">
+          <MatchesMap pins={onMap.map((m) => ({ code: m.code, lat: m.lat!, lng: m.lng!, time: m.time, access: m.access, name: m.name }))} me={me} selected={pin} onSelect={setPin} />
+          {shown.length > onMap.length && (
+            <span className="absolute left-2.5 top-2.5 z-[500] rounded-md bg-bg/80 px-2 py-1 text-[10.5px] font-semibold text-fg/60">
+              {shown.length - onMap.length} sem endereço no mapa
+            </span>
+          )}
+          {picked && <div className="absolute inset-x-2.5 bottom-2.5 z-[500] shadow-[0_14px_30px_-12px_rgb(0_0_0/.8)]"><Card m={picked} tag={current.tag} dist={dist(picked)} /></div>}
         </div>
       ) : (
         <div className="flex flex-col gap-2.5">
-          {shown.map((m) => <Card key={m.code} m={m} tag={current.tag} />)}
+          {shown.map((m) => <Card key={m.code} m={m} tag={current.tag} dist={dist(m)} />)}
         </div>
       )}
       {shown.length === 0 && <p className="py-4 text-center text-sm text-fg/50">Nenhuma partida com vaga nesse dia e filtros. Tente outro dia ou mude a localização.</p>}

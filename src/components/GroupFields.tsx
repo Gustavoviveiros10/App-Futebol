@@ -2,10 +2,14 @@ import type { GameFormat, Level, MatchAccess, Modality } from "@prisma/client";
 import { WEEKDAYS, addToTime, centsToInput } from "@/lib/format";
 import { ACCESS, FORMATS, LEVELS, MODALITIES } from "@/lib/labels";
 import { Choice, Pills } from "./Choice";
+import { PlaceField } from "./PlaceField";
 
 type G = {
   name?: string;
   location?: string | null;
+  address?: string | null;
+  lat?: number | null;
+  lng?: number | null;
   weekday?: number | null;
   time?: string | null;
   maxPlayers?: number | null;
@@ -27,10 +31,7 @@ export function GroupFields({ g = {}, withDueDay = false }: { g?: G; withDueDay?
         <label className="label" htmlFor="name">Nome da pelada</label>
         <input className="input" id="name" name="name" placeholder="Pelada dos Amigos" defaultValue={g.name} required />
       </div>
-      <div>
-        <label className="label" htmlFor="location">Local</label>
-        <input className="input" id="location" name="location" placeholder="Arena X" defaultValue={g.location ?? ""} />
-      </div>
+      <PlaceField v={g} />
       <div>
         <label className="label" htmlFor="weekday">Dia</label>
         <select className="input" id="weekday" name="weekday" defaultValue={g.weekday ?? 3}>

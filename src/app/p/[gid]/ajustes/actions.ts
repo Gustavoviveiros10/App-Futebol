@@ -20,6 +20,9 @@ export async function updateGroup(gid: string, _: ActionState, form: FormData): 
     data: {
       name: d.name,
       location: d.location ?? null,
+      address: d.address ?? null,
+      lat: d.lat ?? null,
+      lng: d.lng ?? null,
       weekday: d.weekday ?? null,
       time: d.time ?? null,
       maxPlayers: d.maxPlayers ?? null,

@@ -22,6 +22,9 @@ export async function createGroup(_: ActionState, form: FormData): Promise<Actio
     data: {
       name: d.name,
       location: d.location,
+      address: d.address,
+      lat: d.lat,
+      lng: d.lng,
       weekday: d.weekday,
       time: d.time ?? null,
       maxPlayers: d.maxPlayers,

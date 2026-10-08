@@ -54,6 +54,9 @@ model Group {
   name            String
   description     String?
   location        String?
+  address         String? // endereço para o mapa
+  lat             Float?
+  lng             Float?
   weekday         Int? // 0 = domingo ... 6 = sábado
   time            String? // "20:00"
   durationMin     Int         @default(60)
@@ -214,6 +217,9 @@ model Match {
   date           DateTime
   durationMin    Int         @default(60)
   location       String?
+  address        String?
+  lat            Float?
+  lng            Float?
   singleFeeCents Int         @default(0)
   maxPlayers     Int?
   teamsCount     Int         @default(2)

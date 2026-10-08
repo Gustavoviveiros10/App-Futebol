@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { MapPin, Send, Check } from "lucide-react";
+import { MapPin, Navigation, Send, Check } from "lucide-react";
+import { directionsUrl } from "@/lib/map";
+import { PlaceMap } from "@/components/PlaceMap";
 import { db } from "@/lib/db";
 import { fmtDayMonth, fmtTimeRange, initials, money, weekdayLong } from "@/lib/format";
 import { LEVELS, MODALITIES } from "@/lib/labels";
@@ -16,7 +18,7 @@ export default async function PublicMatch({ params, searchParams }: { params: Pr
   const match = await db.match.findUnique({
     where: { shareCode: code },
     include: {
-      group: { select: { id: true, name: true, location: true, modality: true, level: true, timezone: true, inviteCode: true, owner: { select: { name: true } }, _count: { select: { matches: { where: { status: "FINISHED" } } } } } },
+      group: { select: { id: true, name: true, location: true, address: true, lat: true, lng: true, modality: true, level: true, timezone: true, inviteCode: true, owner: { select: { name: true } }, _count: { select: { matches: { where: { status: "FINISHED" } } } } } },
       _count: { select: { players: { where: { status: "CONFIRMED" } } } },
     },
   });
@@ -30,6 +32,9 @@ export default async function PublicMatch({ params, searchParams }: { params: Pr
   const org = group.owner.name.split(" ")[0];
   const when = `${weekdayLong(match.date, tz)}, ${fmtDayMonth(match.date, tz)}`;
   const place = match.location || group.location;
+  const sameAsGroup = !match.location || match.location === group.location;
+  const lat = match.lat ?? (sameAsGroup ? group.lat : null), lng = match.lng ?? (sameAsGroup ? group.lng : null);
+  const address = match.address ?? (sameAsGroup ? group.address : null);
 
   if (sp.feito) {
     const meId = await rememberedPlayer(group.id);
@@ -103,7 +108,13 @@ export default async function PublicMatch({ params, searchParams }: { params: Pr
         </span>
       </div>
 
-      {place && <p className="flex items-center gap-1.5 text-sm text-fg/70"><MapPin size={14} /> {place}</p>}
+      {(place || address) && <p className="flex items-start gap-1.5 text-sm text-fg/70"><MapPin size={14} className="mt-0.5 shrink-0" /> {[place, address].filter(Boolean).join(" · ")}</p>}
+      {lat != null && lng != null && (
+        <div className="flex flex-col gap-2">
+          <PlaceMap lat={lat} lng={lng} />
+          <a href={directionsUrl(lat, lng)} target="_blank" rel="noopener noreferrer" className="btn-ghost"><Navigation size={16} /> Como chegar</a>
+        </div>
+      )}
 
       {closed || spots === 0 ? (
         <div className="card text-center">
