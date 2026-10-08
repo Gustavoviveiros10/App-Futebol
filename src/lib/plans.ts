@@ -17,14 +17,14 @@ export const PLANS: Record<Plan, { name: string; priceCents: number; maxGroups: 
     priceCents: 1990,
     maxGroups: 1,
     tagline: "Para quem organiza",
-    features: ["Sua própria pelada", "Jogadores ilimitados", "Cobrança de mensalidades e avulsos", "Sorteio equilibrado", "Estatísticas, craque e rankings"],
+    features: ["Sua própria pelada", "Jogadores ilimitados", "Sorteio equilibrado", "Estatísticas, craque e rankings", "Partidas abertas no Quero jogar"],
   },
   PREMIUM: {
     name: "Premium",
     priceCents: 2990,
     maxGroups: 3,
     tagline: "Para quem organiza várias",
-    features: ["Tudo do Pro", "Até 3 peladas", "Caixa da pelada: despesas, saldo e comprovantes", "Divisão do churrasco", "Personalização da pelada"],
+    features: ["Tudo do Pro", "Até 3 peladas", "Financeiro completo: mensalidades, avulsos, despesas e caixa", "Divisão do churrasco", "Personalização da pelada"],
   },
 };
 

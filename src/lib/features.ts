@@ -8,7 +8,7 @@ import { effectivePlan } from "./plans";
  * "advanced": cobrança (mensalidades e avulsos) fica no Pro; caixa (despesas, saldo,
  * comprovantes) e divisão do churrasco são Premium. "all": o financeiro inteiro é Premium.
  */
-export const FINANCE_PREMIUM: "advanced" | "all" = "advanced";
+export const FINANCE_PREMIUM: "advanced" | "all" = "all";
 
 export const groupPremium = cache(async (groupId: string) => {
   const g = await db.group.findUnique({ where: { id: groupId }, select: { owner: { select: { subscription: true } } } });

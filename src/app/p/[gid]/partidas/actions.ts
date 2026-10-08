@@ -15,6 +15,7 @@ import { notifyGroup, notifyPlayers } from "@/lib/notify";
 import { TEAM_PRESETS, drawTeams as runDraw, playerStrength, type DrawMode } from "@/lib/draw";
 import { groupStats } from "@/lib/stats";
 import { chargeMatchPlayers } from "@/lib/finance";
+import { FINANCE_PREMIUM, groupPremium } from "@/lib/features";
 import { ALL_TAGS } from "@/lib/ratings";
 import { findOrCreateGuestPlayer } from "@/lib/guest";
 
@@ -258,7 +259,8 @@ export async function saveResult(gid: string, mid: string, _: ActionState, form:
     }
     await tx.match.update({ where: { id: mid }, data: { status: "FINISHED", votingOpen: wasFinished ? match.votingOpen : true } });
   });
-  const charged = await chargeMatchPlayers(mid);
+  // cobrança automática do avulso só com o financeiro liberado (Premium)
+  const charged = FINANCE_PREMIUM === "all" && !(await groupPremium(gid)) ? 0 : await chargeMatchPlayers(mid);
   if (!wasFinished) {
     const played = mps.filter((mp) => form.get(`played_${mp.id}`) === "on").map((mp) => mp.playerId);
     await notifyPlayers(played, { groupId: gid, type: "MATCH_FINISHED", title: "🏆 Resultado lançado! Vote no craque da partida", link: `/p/${gid}/partidas/${mid}?aba=resultado` });

@@ -14,10 +14,13 @@ import { WhatsAppButton } from "@/components/WhatsAppButton";
 import { respond, startMatch } from "./partidas/actions";
 import { START_EARLY_MIN } from "@/lib/matches";
 import { StartMatchButton } from "@/components/StartMatchButton";
+import { PremiumLock } from "@/components/PremiumLock";
+import { FINANCE_PREMIUM, groupPremium } from "@/lib/features";
 
 export default async function Dashboard({ params }: { params: Promise<{ gid: string }> }) {
   const { gid } = await params;
-  const { group, isOrganizer, player: me, user } = await getMembership(gid);
+  const { group, isOrganizer, isOwner, player: me, user } = await getMembership(gid);
+  const financePremium = FINANCE_PREMIUM === "advanced" || (await groupPremium(gid));
   const tz = group.timezone;
 
   const [nextRaw, last, playerCount, matchCount, seasonStats] = await Promise.all([
@@ -171,8 +174,8 @@ export default async function Dashboard({ params }: { params: Promise<{ gid: str
         </div>
       )}
 
-      <MyFinanceCard />
-      {isOrganizer && <OrganizerFinance />}
+      {financePremium && <MyFinanceCard />}
+      {isOrganizer && (financePremium ? <OrganizerFinance /> : <PremiumLock isOwner={isOwner} title="Financeiro da pelada" text="Cobre mensalidades e avulsos, veja quem está em dia, lance despesas e acompanhe o caixa." />)}
 
       {last && (
         <Link href={`/p/${gid}/partidas/${last.id}?aba=resultado`} className="card block">
