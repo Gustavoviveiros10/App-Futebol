@@ -27,6 +27,8 @@ export async function guestRespond(code: string, _: ActionState, form: FormData)
   if (match.status !== "SCHEDULED") return { error: "A lista desta partida já foi fechada. Fale com o organizador." };
   const s = status.safeParse(form.get("status"));
   if (!s.success) return { error: "Escolha Vou ou Não vou." };
+  // quem veio de "Quero jogar" volta para a tela de confirmação de lá
+  const fromExplore = form.get("origem") === "jogar";
 
   let playerId = String(form.get("playerId") ?? "");
   if (playerId) {
@@ -35,17 +37,19 @@ export async function guestRespond(code: string, _: ActionState, form: FormData)
   } else {
     const n = newcomer.safeParse({ name: form.get("name"), phone: form.get("phone") || undefined });
     if (!n.success) return { error: n.error.issues[0].message };
+    if (fromExplore && !n.data.phone) return { error: "Coloque seu WhatsApp para o organizador te responder." };
     if (s.data === "DECLINED") return { error: "Se não for jogar, não precisa fazer nada. 😉" };
     if (match.access === "APPROVAL") {
       await db.joinRequest.create({ data: { matchId: match.id, name: n.data.name, phone: n.data.phone } });
       await notifyGroupOrganizers(match.groupId, { type: "JOIN_REQUEST", title: `🙋 ${n.data.name} pediu vaga na partida`, link: `/p/${match.groupId}/partidas/${match.id}` });
-      redirect(`/j/${code}?pedido=1`);
+      redirect(fromExplore ? `/jogar/${code}?feito=pedido&nome=${encodeURIComponent(n.data.name.split(" ")[0])}` : `/j/${code}?pedido=1`);
     }
     playerId = await findOrCreateGuestPlayer(match.groupId, n.data.name, n.data.phone);
   }
   await setAttendance(match.id, playerId, s.data);
   await rememberPlayer(match.groupId, playerId);
   revalidatePath(`/p/${match.groupId}`, "layout");
+  if (fromExplore) redirect(`/jogar/${code}?feito=entrou`);
   redirect(`/j/${code}?ok=${s.data === "CONFIRMED" ? "vou" : "nao"}`);
 }
 
