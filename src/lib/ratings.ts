@@ -21,9 +21,10 @@ export async function peerSummaries(playerIds: string[]) {
   return map;
 }
 
-/** Resumo completo para o perfil, com a contagem de cada tag. */
-export async function peerProfile(playerId: string) {
-  const rows = await db.peerRating.findMany({ where: { ratedId: playerId }, select: { quality: true, conduct: true, tags: true } });
+/** Resumo completo para o perfil, com a contagem de cada tag (um jogador ou vários, ex.: todas as peladas de uma conta). */
+export async function peerProfile(playerId: string | string[]) {
+  const ids = Array.isArray(playerId) ? playerId : [playerId];
+  const rows = ids.length ? await db.peerRating.findMany({ where: { ratedId: { in: ids } }, select: { quality: true, conduct: true, tags: true } }) : [];
   const tags = new Map<string, number>();
   for (const r of rows) for (const t of r.tags) tags.set(t, (tags.get(t) ?? 0) + 1);
   const avg = (k: "quality" | "conduct") => (rows.length ? rows.reduce((s, r) => s + r[k], 0) / rows.length : null);
