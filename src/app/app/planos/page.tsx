@@ -9,8 +9,9 @@ import { startTrial } from "../actions";
 
 export const metadata = { title: "Planos" };
 
-export default async function Plans({ searchParams }: { searchParams: Promise<{ novo?: string }> }) {
-  const { novo } = await searchParams;
+export default async function Plans({ searchParams }: { searchParams: Promise<{ novo?: string; plano?: string }> }) {
+  const { novo, plano } = await searchParams;
+  const focus = plano === "PREMIUM" ? "PREMIUM" : "PRO";
   const user = await requireUser();
   const { sub, plan } = await getUserPlan(user.id);
   const now = new Date();
@@ -22,16 +23,16 @@ export default async function Plans({ searchParams }: { searchParams: Promise<{ 
       <PageHeader title={novo ? "Escolha seu plano" : "Planos"} back="/app?todas=1" subtitle={trialing ? `Teste grátis até ${fmtDate(sub!.currentPeriodEnd!)}` : novo ? "Último passo para criar sua pelada" : `Você está no ${PLANS[plan].name}`} />
 
       <div className="flex flex-col gap-3">
-        {(["PRO", "PREMIUM", "FREE"] as const).map((k) => {
+        {(focus === "PREMIUM" ? (["PREMIUM", "PRO", "FREE"] as const) : (["PRO", "PREMIUM", "FREE"] as const)).map((k) => {
           const current = plan === k;
           return (
-            <div key={k} className={`card p-5 ${k === "PRO" ? "ring-2 ring-accent/80" : ""}`}>
+            <div key={k} className={`card p-5 ${k === focus ? "ring-2 ring-accent/80" : ""}`}>
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-lg font-bold">{PLANS[k].name}</p>
                   <p className="text-sm text-fg/45">{PLANS[k].tagline}</p>
                 </div>
-                {current ? <span className="chip bg-fg/10 text-fg/70">Seu plano</span> : k === "PRO" && <span className="chip bg-accent text-bg">Recomendado</span>}
+                {current ? <span className="chip bg-fg/10 text-fg/70">Seu plano</span> : k === focus && <span className="chip bg-accent text-bg">Recomendado</span>}
               </div>
               <p className="mt-3 font-display text-5xl font-bold">
                 {PLANS[k].priceCents ? money(PLANS[k].priceCents) : "Grátis"}
@@ -46,7 +47,7 @@ export default async function Plans({ searchParams }: { searchParams: Promise<{ 
               </ul>
               {k !== "FREE" && !current && !trialUsed && (
                 <form action={startTrial.bind(null, k)} className="mt-5">
-                  <SubmitButton className={`${k === "PRO" ? "btn-primary" : "btn-ghost"} w-full`} pendingText="Ativando...">
+                  <SubmitButton className={`${k === focus ? "btn-primary" : "btn-ghost"} w-full`} pendingText="Ativando...">
                     {trialing ? `Mudar para o ${PLANS[k].name}` : `Testar ${TRIAL_DAYS} dias grátis`}
                   </SubmitButton>
                 </form>

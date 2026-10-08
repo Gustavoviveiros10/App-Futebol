@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { ArrowRight, ChevronRight, LogOut, Plus, Search } from "lucide-react";
+import { ArrowRight, ChevronRight, Plus, Search } from "lucide-react";
+import { Avatar } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { PLANS, TRIAL_DAYS } from "@/lib/plans";
@@ -11,14 +11,12 @@ import { StartMatchButton } from "@/components/StartMatchButton";
 import { startMatch } from "../p/[gid]/partidas/actions";
 import { ActionForm, SubmitButton } from "@/components/forms";
 import { Logo, LogoMark } from "@/components/Logo";
-import { signOut } from "../(auth)/actions";
 import { openInvite } from "./actions";
 
 export const metadata = { title: "Minhas peladas" };
 
-export default async function MyGroups({ searchParams }: { searchParams: Promise<{ todas?: string }> }) {
+export default async function MyGroups() {
   const user = await requireUser();
-  const { todas } = await searchParams;
   const [memberships, { plan, canCreate, owned }] = await Promise.all([
     db.player.findMany({
       where: { userId: user.id, active: true },
@@ -35,87 +33,90 @@ export default async function MyGroups({ searchParams }: { searchParams: Promise
     }),
     getUserPlan(user.id),
   ]);
-  if (memberships.length === 1 && !todas) redirect(`/p/${memberships[0].groupId}`);
+  const organize = memberships.filter((m) => m.role === "ORGANIZER");
+  const play = memberships.filter((m) => m.role !== "ORGANIZER");
+  const card = (m: (typeof memberships)[number]) => (
+    <div key={m.id} className="flex flex-col gap-2">
+      <Link href={`/p/${m.groupId}`} prefetch={false} className="card flex items-center gap-4 transition hover:bg-surface-2">
+        <div className="pitch-gradient flex h-12 w-12 shrink-0 items-center justify-center rounded-xl">
+          <span className="font-display text-xl font-bold text-accent">{m.group.name.slice(0, 1).toUpperCase()}</span>
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-bold">{m.group.name}</p>
+          <p className="text-sm text-fg/45">
+            {m.role === "ORGANIZER" ? (m.group.ownerId === user.id ? "Dono" : "Administrador") : "Jogador"} · {m.group._count.players} jogadores
+          </p>
+        </div>
+        <ChevronRight className="text-fg/25" />
+      </Link>
+      {m.role === "ORGANIZER" && m.group.matches[0] && (
+        <StartMatchButton
+          startsAt={m.group.matches[0].date.toISOString()}
+          unlockLabel={fmtTime(new Date(m.group.matches[0].date.getTime() - START_EARLY_MIN * 60_000), m.group.timezone)}
+          started={!!m.group.matches[0].startedAt}
+          controlHref={`/p/${m.groupId}/partidas/${m.group.matches[0].id}/controle`}
+          action={startMatch.bind(null, m.groupId, m.group.matches[0].id)}
+        />
+      )}
+    </div>
+  );
 
   return (
     <div className="mx-auto min-h-dvh max-w-md px-4 pb-12">
       <header className="flex items-center justify-between py-5">
         <Logo />
-        <form action={signOut}>
-          <button className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm text-fg/50 hover:text-fg">
-            <LogOut size={16} /> Sair
-          </button>
-        </form>
+        <Link href="/app/perfil" className="flex items-center gap-2 rounded-full py-1 pl-3 pr-1 text-sm font-semibold text-fg/70 ring-1 ring-fg/[0.08] hover:bg-surface" aria-label="Meu perfil">
+          Perfil <Avatar name={user.name} size={28} />
+        </Link>
       </header>
 
       <p className="section-title mt-4 px-0">Plano {PLANS[plan].name}</p>
       <h1 className="text-5xl">Olá, {user.name.split(" ")[0]}</h1>
-      <p className="mt-2 text-fg/55">{memberships.length ? "Escolha uma pelada." : "Bem-vindo. Entre na pelada da sua turma ou organize a sua."}</p>
 
-      {[
-        { title: "Peladas que organizo", list: memberships.filter((m) => m.role === "ORGANIZER") },
-        { title: "Peladas que jogo", list: memberships.filter((m) => m.role !== "ORGANIZER") },
-      ].filter((sec) => sec.list.length).map((sec) => (
-        <div key={sec.title} className="mt-6">
-        <p className="section-title px-0">{sec.title}</p>
+      {/* Peladas que organizo */}
+      <section className="mt-6" data-testid="organizo">
+        <p className="section-title px-0">Peladas que organizo</p>
         <div className="flex flex-col gap-2">
-          {sec.list.map((m) => (
-            <div key={m.id} className="flex flex-col gap-2">
-            <Link href={`/p/${m.groupId}`} prefetch={false} className="card flex items-center gap-4 transition hover:bg-surface-2">
-              <div className="pitch-gradient flex h-12 w-12 shrink-0 items-center justify-center rounded-xl">
-                <span className="font-display text-xl font-bold text-accent">{m.group.name.slice(0, 1).toUpperCase()}</span>
+          {organize.map(card)}
+          {canCreate ? (
+            <Link href="/app/nova" className="btn-primary w-full py-4">
+              <Plus size={20} /> {owned ? "Criar nova pelada" : "Criar minha pelada"}
+            </Link>
+          ) : plan === "FREE" ? (
+            <div className="pitch-gradient overflow-hidden rounded-2xl p-5">
+              <div className="flex items-center gap-2">
+                <LogoMark size={22} />
+                <span className="chip bg-accent text-bg">PRO</span>
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-bold">{m.group.name}</p>
-                <p className="text-sm text-fg/45">
-                  {m.role === "ORGANIZER" ? "Organizador" : "Jogador"} · {m.group._count.players} jogadores
-                </p>
-              </div>
+              <p className="mt-4 font-display text-3xl font-bold uppercase leading-none">Organize a sua pelada</p>
+              <p className="mt-2 text-sm leading-relaxed text-fg/60">Assine o Pro para criar sua pelada, cadastrar a galera, controlar presença, sortear times e acompanhar os rankings.</p>
+              <Link href="/app/planos?plano=PRO" className="btn-primary mt-5 w-full">
+                Assinar o Pro · {TRIAL_DAYS} dias grátis <ArrowRight size={18} />
+              </Link>
+              <p className="mt-2 text-center text-xs text-fg/40">Sem cartão no teste. Depois, {money(PLANS.PRO.priceCents)}/mês.</p>
+            </div>
+          ) : plan === "PRO" ? (
+            <Link href="/app/planos?plano=PREMIUM" className="flex items-center gap-3 rounded-2xl border border-dashed border-fg/15 p-4 transition hover:border-gold/50 hover:bg-surface">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gold/10 text-gold"><Plus size={22} /></span>
+              <span className="flex-1">
+                <b className="flex items-center gap-2">Criar nova pelada <span className="chip bg-gold/15 text-gold">Premium</span></b>
+                <small className="text-fg/55">No Premium você organiza até {PLANS.PREMIUM.maxGroups} peladas e tem o financeiro completo.</small>
+              </span>
               <ChevronRight className="text-fg/25" />
             </Link>
-            {m.role === "ORGANIZER" && m.group.matches[0] && (
-              <StartMatchButton
-                startsAt={m.group.matches[0].date.toISOString()}
-                unlockLabel={fmtTime(new Date(m.group.matches[0].date.getTime() - START_EARLY_MIN * 60_000), m.group.timezone)}
-                started={!!m.group.matches[0].startedAt}
-                controlHref={`/p/${m.groupId}/partidas/${m.group.matches[0].id}/controle`}
-                action={startMatch.bind(null, m.groupId, m.group.matches[0].id)}
-              />
-            )}
-            </div>
-          ))}
+          ) : (
+            <p className="text-center text-xs text-fg/45">Você já organiza o máximo de {PLANS[plan].maxGroups} peladas do seu plano.</p>
+          )}
         </div>
-        </div>
-      ))}
+      </section>
 
-      {/* Organizar a própria pelada */}
-      {canCreate ? (
-        <Link href="/app/nova" className="btn-primary mt-4 w-full py-4">
-          <Plus size={20} /> Criar minha pelada
-        </Link>
-      ) : (
-        owned === 0 && (
-          <div className="pitch-gradient mt-6 overflow-hidden rounded-2xl p-5">
-            <div className="flex items-center gap-2">
-              <LogoMark size={22} />
-              <span className="chip bg-accent text-bg">PRO</span>
-            </div>
-            <p className="mt-4 font-display text-3xl font-bold uppercase leading-none">Organize o seu próprio futebol</p>
-            <p className="mt-2 text-sm leading-relaxed text-fg/60">
-              Crie sua pelada, cadastre a galera, controle presença e mensalidades, sorteie times e acompanhe os rankings.
-            </p>
-            <Link href="/app/planos" className="btn-primary mt-5 w-full">
-              Testar o Pro grátis por {TRIAL_DAYS} dias <ArrowRight size={18} />
-            </Link>
-            <p className="mt-2 text-center text-xs text-fg/40">Sem cartão. Depois, {money(PLANS.PRO.priceCents)}/mês.</p>
-          </div>
-        )
-      )}
-      {!canCreate && owned > 0 && (
-        <Link href="/app/planos" className="mt-4 block text-center text-sm font-semibold text-fg/50 hover:text-fg">
-          Quer organizar mais peladas? Ver planos
-        </Link>
-      )}
+      {/* Peladas que participo */}
+      <section className="mt-6" data-testid="participo">
+        <p className="section-title px-0">Peladas que participo</p>
+        <div className="flex flex-col gap-2">
+          {play.length ? play.map(card) : <p className="card text-sm text-fg/55">Você ainda não joga em nenhuma pelada. Entre pelo link de convite ou encontre uma partida aberta.</p>}
+        </div>
+      </section>
 
       <Link href="/jogar" className="card mt-4 flex items-center gap-3 transition hover:ring-accent/40">
         <Search size={20} className="shrink-0 text-accent" />
