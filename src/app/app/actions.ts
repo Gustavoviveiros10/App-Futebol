@@ -47,17 +47,19 @@ export async function createGroup(_: ActionState, form: FormData): Promise<Actio
   redirect(`/p/${group.id}`);
 }
 
-/** Ativa o teste grátis do plano (sem cobrança por enquanto; o checkout entra aqui depois). */
+/** Ativa o teste grátis do plano (sem cartão). A cobrança fica em planos/actions.ts. */
 export async function startTrial(plan: "PRO" | "PREMIUM") {
   const user = await requireUser();
   if (plan !== "PRO" && plan !== "PREMIUM") throw new Error("Plano inválido.");
   const sub = await db.subscription.findUnique({ where: { userId: user.id } });
   const end = new Date(Date.now() + TRIAL_DAYS * 86400_000);
-  if (sub?.currentPeriodEnd && sub.currentPeriodEnd > new Date()) {
-    // já está em um período ativo: só troca o plano, mantendo a data
+  if (sub?.lastPaymentId) {
+    throw new Error("Você já tem assinatura. Mude de plano pela página de planos.");
+  } else if (sub?.status === "TRIALING" && sub.currentPeriodEnd && sub.currentPeriodEnd > new Date()) {
+    // já está no teste: só troca o plano, mantendo a data
     await db.subscription.update({ where: { userId: user.id }, data: { plan } });
   } else if (sub?.currentPeriodEnd) {
-    throw new Error("Seu período de teste já terminou. A assinatura com pagamento chega em breve.");
+    throw new Error("Seu período de teste já terminou. Assine para continuar.");
   } else {
     await db.subscription.upsert({
       where: { userId: user.id },

@@ -130,10 +130,16 @@ model Subscription {
   status           SubscriptionStatus @default(ACTIVE)
   currentPeriodEnd DateTime?
   provider         String? // ex.: "stripe", "mercadopago", "asaas"
-  externalId       String?
+  externalId       String? // id da assinatura no provedor (null = sem cobrança recorrente)
+  customerId       String? // id do cliente no provedor
+  pendingPlan      Plan? // plano escolhido no checkout, vale quando o pagamento confirmar
+  checkoutUrl      String? // link da fatura em aberto
+  lastPaymentId    String? // último pagamento aplicado (webhook idempotente)
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
   user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([externalId])
 }
 
 enum Role {
