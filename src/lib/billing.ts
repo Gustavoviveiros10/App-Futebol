@@ -1,7 +1,7 @@
 import "server-only";
 import type { Plan, Subscription } from "@prisma/client";
 import { db } from "./db";
-import type { AsaasPayment } from "./asaas";
+import { subscriptionPayments, type AsaasPayment } from "./asaas";
 
 const DAY = 86400_000;
 const GRACE_DAYS = 3;
@@ -82,4 +82,22 @@ export async function applySubscriptionDeleted(asaasSubscriptionId: string) {
     where: { externalId: asaasSubscriptionId },
     data: { externalId: null, pendingPlan: null, checkoutUrl: null },
   });
+}
+
+const PAID = new Set(["CONFIRMED", "RECEIVED", "RECEIVED_IN_CASH"]);
+
+/**
+ * Confere no Asaas se a fatura em aberto já foi paga (reserva para quando o webhook não chega).
+ * Só consulta quando há checkout pendente ou atraso. Devolve true se mudou algo.
+ */
+export async function syncFromAsaas(sub: Subscription | null | undefined) {
+  if (!sub?.externalId || !(hasPendingCheckout(sub) || sub.status === "PAST_DUE")) return false;
+  try {
+    const paid = (await subscriptionPayments(sub.externalId)).filter((p) => PAID.has(p.status)).sort((a, b) => b.dueDate.localeCompare(a.dueDate))[0];
+    if (!paid || paid.id === sub.lastPaymentId) return false;
+    return (await applyPaymentEvent("PAYMENT_RECEIVED", { ...paid, subscription: paid.subscription ?? sub.externalId })) === "pago";
+  } catch (e) {
+    console.error("asaas sync", e);
+    return false;
+  }
 }

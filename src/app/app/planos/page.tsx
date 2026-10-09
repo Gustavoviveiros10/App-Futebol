@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { PLANS, TRIAL_DAYS } from "@/lib/plans";
 import { getUserPlan } from "@/lib/subscription";
 import { billingEnabled } from "@/lib/asaas";
-import { hasPendingCheckout, isPaying } from "@/lib/billing";
+import { hasPendingCheckout, isPaying, syncFromAsaas } from "@/lib/billing";
 import { fmtDate, money } from "@/lib/format";
 import { PageHeader } from "@/components/ui";
 import { ActionForm, ConfirmButton, SubmitButton } from "@/components/forms";
@@ -17,7 +17,8 @@ export default async function Plans({ searchParams }: { searchParams: Promise<{ 
   const { novo, plano, mudou } = await searchParams;
   const focus = plano === "PREMIUM" ? "PREMIUM" : "PRO";
   const user = await requireUser();
-  const { sub, plan } = await getUserPlan(user.id);
+  let { sub, plan } = await getUserPlan(user.id);
+  if (billingEnabled() && (await syncFromAsaas(sub))) ({ sub, plan } = await getUserPlan(user.id));
   const now = new Date();
   const billing = billingEnabled();
   const paying = isPaying(sub);
@@ -51,6 +52,7 @@ export default async function Plans({ searchParams }: { searchParams: Promise<{ 
               : "Pix e cartão confirmam em instantes. Boleto leva até 3 dias úteis."}
           </p>
           <a href={sub.checkoutUrl} className="btn-primary" target="_blank" rel="noopener noreferrer">Pagar agora</a>
+          <a href="/app/planos" className="text-center text-sm font-semibold text-fg/60 underline">Já paguei, atualizar</a>
         </div>
       )}
 

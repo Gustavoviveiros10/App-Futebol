@@ -73,9 +73,13 @@ export function cancelSubscription(id: string) {
   return call("DELETE", `/subscriptions/${id}`);
 }
 
+export async function subscriptionPayments(subscriptionId: string) {
+  return (await call<{ data: AsaasPayment[] }>("GET", `/subscriptions/${subscriptionId}/payments`)).data;
+}
+
 export async function firstOpenPayment(subscriptionId: string) {
-  const r = await call<{ data: AsaasPayment[] }>("GET", `/subscriptions/${subscriptionId}/payments`);
-  return r.data.find((p) => p.status === "PENDING" || p.status === "OVERDUE") ?? r.data[0] ?? null;
+  const list = await subscriptionPayments(subscriptionId);
+  return list.find((p) => p.status === "PENDING" || p.status === "OVERDUE") ?? list[0] ?? null;
 }
 
 function today() {
