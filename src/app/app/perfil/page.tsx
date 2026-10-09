@@ -16,6 +16,7 @@ import { signOut } from "../../(auth)/actions";
 import { changePassword, saveName } from "./actions";
 
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
+import { InstallApp } from "@/components/InstallApp";
 
 export const metadata = { title: "Meu perfil" };
 
@@ -120,6 +121,8 @@ export default async function Profile() {
           <span className="text-sm font-semibold text-accent">Ver planos</span>
           <ChevronRight className="text-fg/25" />
         </Link>
+
+        <InstallApp dismissible={false} />
 
         <section className="card">
           <p className="mb-3 font-extrabold">Dados pessoais</p>

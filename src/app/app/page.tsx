@@ -12,6 +12,7 @@ import { startMatch } from "../p/[gid]/partidas/actions";
 import { ActionForm, SubmitButton } from "@/components/forms";
 import { Logo, LogoMark } from "@/components/Logo";
 import { openInvite } from "./actions";
+import { InstallApp } from "@/components/InstallApp";
 
 export const metadata = { title: "Minhas peladas" };
 
@@ -72,6 +73,8 @@ export default async function MyGroups() {
 
       <p className="section-title mt-4 px-0">Plano {PLANS[plan].name}</p>
       <h1 className="text-5xl">Olá, {user.name.split(" ")[0]}</h1>
+
+      <InstallApp className="mt-5" />
 
       {/* Peladas que organizo */}
       <section className="mt-6" data-testid="organizo">
