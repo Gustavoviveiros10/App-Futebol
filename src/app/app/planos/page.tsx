@@ -128,6 +128,9 @@ export default async function Plans({ searchParams }: { searchParams: Promise<{ 
                       primary={trialing ? current : (trialUsed || !TRIAL_ENABLED) && k === focus}
                     />
                   )}
+                  {!billing && !TRIAL_ENABLED && !current && (
+                    <button type="button" disabled className="btn-ghost mt-3 w-full opacity-60">Assinatura em breve</button>
+                  )}
                   {billing && trialing && current && !paying && (
                     <p className="mt-2 text-center text-xs text-fg/45">Assinando agora você não perde os dias de teste que faltam.</p>
                   )}
