@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { applyPaymentEvent, applySubscriptionDeleted } from "@/lib/billing";
+import { applyPaymentEvent, applySubscriptionCreated, applySubscriptionDeleted } from "@/lib/billing";
 import { billingEnabled } from "@/lib/asaas";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +24,7 @@ export async function POST(req: Request) {
   try {
     let result = "ignorado";
     if (body?.payment) result = await applyPaymentEvent(event, body.payment);
+    else if (event === "SUBSCRIPTION_CREATED" && body?.subscription?.id) result = await applySubscriptionCreated(body.subscription);
     else if (event === "SUBSCRIPTION_DELETED" && body?.subscription?.id) {
       await applySubscriptionDeleted(body.subscription.id);
       result = "assinatura removida";

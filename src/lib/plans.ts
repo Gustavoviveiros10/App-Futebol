@@ -28,9 +28,9 @@ export const PLANS: Record<Plan, { name: string; priceCents: number; maxGroups: 
   },
 };
 
-export const TRIAL_DAYS = 30;
-/** Teste grátis desligado: para organizar é preciso assinar. Quem já está em teste segue até o fim. */
-export const TRIAL_ENABLED = false;
+export const TRIAL_DAYS = 14;
+/** Teste grátis com cartão cadastrado: a primeira cobrança só acontece depois de TRIAL_DAYS. */
+export const TRIAL_ENABLED = true;
 
 /** Plano efetivo: assinatura vencida ou cancelada volta para o gratuito. */
 export function effectivePlan(sub: Subscription | null | undefined): Plan {

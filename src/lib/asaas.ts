@@ -85,6 +85,32 @@ export function deletePayment(id: string) {
   return call("DELETE", `/payments/${id}`);
 }
 
+/**
+ * Teste grátis: página do Asaas onde a pessoa cadastra o cartão.
+ * Ao concluir, o Asaas cria a assinatura com a primeira cobrança em `firstChargeDate`; nada é cobrado antes.
+ */
+export async function createTrialCheckout(c: { customer: string; valueCents: number; name: string; description: string; firstChargeDate: string; externalReference: string; returnUrl: string }) {
+  const co = await call<{ id: string; link?: string }>("POST", "/checkouts", {
+    billingTypes: ["CREDIT_CARD"],
+    chargeTypes: ["RECURRENT"],
+    minutesToExpire: 120,
+    externalReference: c.externalReference,
+    customer: c.customer,
+    callback: { successUrl: `${c.returnUrl}?cartao=ok`, cancelUrl: c.returnUrl, expiredUrl: c.returnUrl },
+    items: [{ name: c.name, description: c.description, quantity: 1, value: c.valueCents / 100 }],
+    subscription: { cycle: "MONTHLY", nextDueDate: `${c.firstChargeDate} 12:00:00` },
+  });
+  const site = env.ASAAS_ENV === "production" ? "https://www.asaas.com" : "https://sandbox.asaas.com";
+  return { id: co.id, url: co.link || `${site}/checkoutSession/show?id=${co.id}` };
+}
+
+export type AsaasSubscription = { id: string; customer: string; nextDueDate: string; dateCreated?: string; status?: string; deleted?: boolean };
+
+/** Assinaturas ativas de um cliente (a do teste aparece aqui quando o cartão é cadastrado). */
+export async function customerSubscriptions(customer: string) {
+  return (await call<{ data: AsaasSubscription[] }>("GET", `/subscriptions?customer=${encodeURIComponent(customer)}&status=ACTIVE`)).data.filter((s) => !s.deleted);
+}
+
 export function updateSubscriptionValue(id: string, valueCents: number, description: string) {
   return call("POST", `/subscriptions/${id}`, { value: valueCents / 100, description, updatePendingPayments: true });
 }
@@ -102,8 +128,9 @@ export async function firstOpenPayment(subscriptionId: string) {
   return list.find((p) => p.status === "PENDING" || p.status === "OVERDUE") ?? list[0] ?? null;
 }
 
-function today() {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+/** Data (YYYY-MM-DD) no fuso de São Paulo, hoje ou daqui a `days` dias. */
+export function today(days = 0) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date(Date.now() + days * 86400_000));
 }
 
 /** Só dígitos; valida CPF (11) ou CNPJ (14) pelos dígitos verificadores. */

@@ -1,20 +1,19 @@
 import { Check, CreditCard, TriangleAlert } from "lucide-react";
 import { requireUser } from "@/lib/auth";
-import { PLANS, TRIAL_DAYS, TRIAL_ENABLED } from "@/lib/plans";
+import { PLANS, TRIAL_DAYS } from "@/lib/plans";
 import { getUserPlan } from "@/lib/subscription";
 import { billingEnabled } from "@/lib/asaas";
-import { hasPendingCheckout, hasPendingUpgrade, isPaying } from "@/lib/billing";
+import { canStartTrial, hasPendingCheckout, hasPendingTrialCheckout, hasPendingUpgrade, isCardTrial, isPaying, trialAvailable } from "@/lib/billing";
 import { fmtDate, money } from "@/lib/format";
 import { PageHeader } from "@/components/ui";
 import { ActionForm, ConfirmButton, SubmitButton } from "@/components/forms";
-import { startTrial } from "../actions";
-import { cancelPlan, changePlan, subscribe } from "./actions";
+import { cancelPlan, changePlan, startTrial, subscribe } from "./actions";
 import { SubscribeForm } from "./SubscribeForm";
 
 export const metadata = { title: "Planos" };
 
-export default async function Plans({ searchParams }: { searchParams: Promise<{ novo?: string; plano?: string; mudou?: string }> }) {
-  const { novo, plano, mudou } = await searchParams;
+export default async function Plans({ searchParams }: { searchParams: Promise<{ novo?: string; plano?: string; mudou?: string; cartao?: string }> }) {
+  const { novo, plano, mudou, cartao } = await searchParams;
   const focus = plano === "PREMIUM" ? "PREMIUM" : "PRO";
   const user = await requireUser();
   const { sub, plan } = await getUserPlan(user.id);
@@ -23,15 +22,19 @@ export default async function Plans({ searchParams }: { searchParams: Promise<{ 
   const paying = isPaying(sub);
   const pending = hasPendingCheckout(sub);
   const trialing = sub?.status === "TRIALING" && !!sub.currentPeriodEnd && sub.currentPeriodEnd > now;
-  const trialUsed = (!!sub?.currentPeriodEnd && sub.currentPeriodEnd <= now) || !!sub?.lastPaymentId;
   const canceledWithAccess = !!sub?.lastPaymentId && !sub.externalId && plan !== "FREE";
   const pastDue = paying && sub?.status === "PAST_DUE";
   const upgrading = hasPendingUpgrade(sub);
+  const cardTrial = trialing && isCardTrial(sub);
+  const trialPending = billing && hasPendingTrialCheckout(sub);
+  const canTrial = trialAvailable() && canStartTrial(sub);
+  const trialCanceled = trialing && !sub!.externalId && !!sub!.customerId && !sub!.checkoutId && !sub!.lastPaymentId;
+  const firstCharge = cardTrial ? new Date(sub!.currentPeriodEnd!.getTime() - 3 * 86400_000) : null;
 
   const subtitle = paying
     ? `Assinatura ${PLANS[plan].name} ativa`
     : trialing
-      ? `Teste grátis até ${fmtDate(sub!.currentPeriodEnd!)}`
+      ? `Teste grátis até ${fmtDate(firstCharge ?? sub!.currentPeriodEnd!)}`
       : novo
         ? "Último passo para criar sua pelada"
         : `Você está no ${PLANS[plan].name}`;
@@ -58,6 +61,26 @@ export default async function Plans({ searchParams }: { searchParams: Promise<{ 
         </div>
       )}
 
+      {trialPending && sub?.checkoutUrl && (
+        <div className="card mb-3 flex flex-col gap-2 p-4 ring-1 ring-gold/40" data-testid="trial-pending">
+          <p className="flex items-center gap-2 font-bold"><TriangleAlert size={17} className="text-gold" /> Falta cadastrar o cartão</p>
+          <p className="text-sm text-fg/60">
+            {cartao ? "Recebemos a confirmação do cartão. Se o plano ainda não liberou, atualize em instantes." : `O teste de ${TRIAL_DAYS} dias do ${PLANS[sub.pendingPlan ?? "PRO"].name} começa assim que o cartão for cadastrado. Nada é cobrado no teste.`}
+          </p>
+          <a href={sub.checkoutUrl} className="btn-primary">Cadastrar cartão</a>
+          <a href="/app/planos" className="text-center text-sm font-semibold text-fg/60 underline">Já cadastrei, atualizar</a>
+        </div>
+      )}
+
+      {cardTrial && (
+        <div className="card mb-3 flex flex-col gap-1 p-4" data-testid="trial-active">
+          <p className="flex items-center gap-2 font-bold"><CreditCard size={17} className="text-accent" /> Teste grátis do {PLANS[plan].name}</p>
+          <p className="text-sm text-fg/60">
+            Grátis até {fmtDate(firstCharge!)}. Depois, {money(PLANS[plan].priceCents)}/mês no cartão cadastrado. Cancele antes e nada é cobrado.
+          </p>
+        </div>
+      )}
+
       {billing && paying && !pastDue && (
         <div className="card mb-3 flex flex-col gap-1 p-4" data-testid="billing-active">
           <p className="flex items-center gap-2 font-bold"><CreditCard size={17} className="text-accent" /> Assinatura ativa</p>
@@ -70,8 +93,14 @@ export default async function Plans({ searchParams }: { searchParams: Promise<{ 
         </div>
       )}
 
-      {mudou && paying && mudou === plan && (
-        <div className="mb-3 rounded-2xl bg-accent/10 px-4 py-3 text-sm font-medium text-accent">Pronto, agora você está no {PLANS[plan].name}. O novo valor vale a partir da próxima cobrança.</div>
+      {mudou && (paying || cardTrial) && mudou === plan && (
+        <div className="mb-3 rounded-2xl bg-accent/10 px-4 py-3 text-sm font-medium text-accent">Pronto, agora você está no {PLANS[plan].name}. O novo valor vale a partir da {cardTrial ? "primeira" : "próxima"} cobrança.</div>
+      )}
+
+      {trialCanceled && (
+        <div className="card mb-3 p-4 text-sm text-fg/65" data-testid="trial-canceled">
+          Teste cancelado. Nada será cobrado e o {PLANS[plan].name} vale até {fmtDate(sub!.currentPeriodEnd!)}.
+        </div>
       )}
 
       {canceledWithAccess && (
@@ -107,33 +136,37 @@ export default async function Plans({ searchParams }: { searchParams: Promise<{ 
 
               {k !== "FREE" && (
                 <div className="mt-2">
-                  {/* teste grátis: só quem nunca testou nem pagou */}
-                  {TRIAL_ENABLED && !current && !trialUsed && !paying && (
-                    <form action={startTrial.bind(null, k)} className="mt-3">
-                      <SubmitButton className={`${k === focus ? "btn-primary" : "btn-ghost"} w-full`} pendingText="Ativando...">
-                        {trialing ? `Testar o ${PLANS[k].name} no lugar` : `Testar ${TRIAL_DAYS} dias grátis`}
-                      </SubmitButton>
-                    </form>
+                  {/* teste grátis com cartão: só quem nunca testou nem assinou */}
+                  {canTrial && !trialPending && (
+                    <SubscribeForm
+                      action={startTrial.bind(null, k)}
+                      label={`Testar ${TRIAL_DAYS} dias grátis`}
+                      submitLabel="Cadastrar cartão"
+                      needsDoc={!sub?.customerId}
+                      primary={k === focus}
+                    />
                   )}
 
-                  {billing && paying && !current && (
+                  {billing && (paying || cardTrial) && !current && (
                     <ActionForm action={changePlan.bind(null, k)} className="mt-3 flex flex-col gap-2">
                       <SubmitButton className="btn-ghost w-full" pendingText="Mudando...">Mudar para o {PLANS[k].name}</SubmitButton>
                     </ActionForm>
                   )}
 
-                  {billing && !paying && !(pending && sub?.pendingPlan === k) && (
+                  {billing && !paying && !cardTrial && !(pending && sub?.pendingPlan === k) && (
                     <SubscribeForm
                       action={subscribe.bind(null, k)}
-                      label={`Assinar por ${money(price)}/mês`}
+                      label={canTrial ? "Ou assine já, com Pix ou boleto" : `Assinar por ${money(price)}/mês`}
                       needsDoc={!sub?.customerId}
-                      primary={trialing ? current : (trialUsed || !TRIAL_ENABLED) && k === focus}
+                      primary={!canTrial && (trialing ? current : k === focus)}
+                      subtle={canTrial}
                     />
                   )}
-                  {!billing && !TRIAL_ENABLED && !current && (
+                  {!billing && !current && (
                     <button type="button" disabled className="btn-ghost mt-3 w-full opacity-60">Assinatura em breve</button>
                   )}
-                  {billing && trialing && current && !paying && (
+                  {canTrial && !trialPending && <p className="mt-2 text-center text-xs text-fg/45">Nada é cobrado nos {TRIAL_DAYS} dias. Depois, {money(price)}/mês. Cancele quando quiser.</p>}
+                  {billing && trialing && current && !paying && !cardTrial && (
                     <p className="mt-2 text-center text-xs text-fg/45">Assinando agora você não perde os dias de teste que faltam.</p>
                   )}
                 </div>
@@ -143,20 +176,18 @@ export default async function Plans({ searchParams }: { searchParams: Promise<{ 
         })}
       </div>
 
-      {billing && paying && (
+      {billing && (paying || cardTrial) && (
         <ActionForm action={cancelPlan} className="mt-4 flex flex-col items-center gap-2">
-          <ConfirmButton message="Cancelar a assinatura? O plano continua valendo até o fim do período pago." className="text-sm font-semibold text-fg/50 underline">
-            Cancelar assinatura
+          <ConfirmButton message={cardTrial ? "Cancelar o teste? Nada será cobrado e o plano vale até o fim do teste." : "Cancelar a assinatura? O plano continua valendo até o fim do período pago."} className="text-sm font-semibold text-fg/50 underline">
+            {cardTrial ? "Cancelar teste" : "Cancelar assinatura"}
           </ConfirmButton>
         </ActionForm>
       )}
 
       <p className="mt-4 text-center text-xs leading-relaxed text-fg/40">
         {billing
-          ? "Pagamento mensal por Pix, cartão ou boleto, processado pelo Asaas. Cancele quando quiser."
-          : trialUsed || !TRIAL_ENABLED
-            ? "A assinatura com cartão e Pix chega em breve."
-            : "O teste é grátis e não pede cartão. A assinatura com cartão e PIX chega em breve; nada é cobrado sem você confirmar."}
+          ? "Pagamento mensal processado pelo Asaas. Cancele quando quiser."
+          : "A assinatura com cartão e Pix chega em breve."}
       </p>
     </div>
   );

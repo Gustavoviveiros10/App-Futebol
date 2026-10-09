@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { parseMoney } from "@/lib/format";
-import { PLANS, TRIAL_DAYS, TRIAL_ENABLED } from "@/lib/plans";
+import { PLANS } from "@/lib/plans";
 import { getUserPlan } from "@/lib/subscription";
 import { type ActionState, zodError } from "@/lib/actions";
 import { formObject, groupDuration, groupSchema, newInviteCode } from "@/lib/validation";
@@ -45,30 +45,6 @@ export async function createGroup(_: ActionState, form: FormData): Promise<Actio
     },
   });
   redirect(`/p/${group.id}`);
-}
-
-/** Ativa o teste grátis do plano (sem cartão). A cobrança fica em planos/actions.ts. */
-export async function startTrial(plan: "PRO" | "PREMIUM") {
-  const user = await requireUser();
-  if (plan !== "PRO" && plan !== "PREMIUM") throw new Error("Plano inválido.");
-  if (!TRIAL_ENABLED) redirect(`/app/planos?plano=${plan}`);
-  const sub = await db.subscription.findUnique({ where: { userId: user.id } });
-  const end = new Date(Date.now() + TRIAL_DAYS * 86400_000);
-  if (sub?.lastPaymentId) {
-    throw new Error("Você já tem assinatura. Mude de plano pela página de planos.");
-  } else if (sub?.status === "TRIALING" && sub.currentPeriodEnd && sub.currentPeriodEnd > new Date()) {
-    // já está no teste: só troca o plano, mantendo a data
-    await db.subscription.update({ where: { userId: user.id }, data: { plan } });
-  } else if (sub?.currentPeriodEnd) {
-    throw new Error("Seu período de teste já terminou. Assine para continuar.");
-  } else {
-    await db.subscription.upsert({
-      where: { userId: user.id },
-      create: { userId: user.id, plan, status: "TRIALING", currentPeriodEnd: end },
-      update: { plan, status: "TRIALING", currentPeriodEnd: end },
-    });
-  }
-  redirect("/app/nova");
 }
 
 /** Aceita o link completo do convite ou só o código. */
