@@ -1,12 +1,13 @@
-import { POSITIONS, fmtTime, money, weekdayLong, fmtDayMonth, type PositionKey } from "./format";
+import { scoreLine, POSITIONS, fmtTime, money, weekdayLong, fmtDayMonth, type PositionKey } from "./format";
 import { appUrl } from "./mail";
 
-type M = { id: string; groupId: string; date: Date; location: string | null };
+type M = { id: string; groupId: string; date: Date; location: string | null; shareCode?: string | null };
 type P = { name: string; nickname: string | null };
 const n = (p: P) => p.nickname || p.name;
 
+/** Link da partida: com código, abre a confirmação sem conta. */
 export function matchLink(m: M) {
-  return appUrl(`/p/${m.groupId}/partidas/${m.id}`);
+  return appUrl(m.shareCode ? `/j/${m.shareCode}` : `/p/${m.groupId}/partidas/${m.id}`);
 }
 
 function header(m: M, tz: string) {
@@ -44,9 +45,12 @@ export function teamsText(m: M, tz: string, teams: { name: string; players: (P &
   return lines.join("\n");
 }
 
-export function resultText(m: M, tz: string, teams: { name: string; score: number | null }[], scorers: { p: P; goals: number }[], mvp?: P | null) {
+export function resultText(m: M, tz: string, teams: { name: string; score: number | null; wins?: number; draws?: number; losses?: number }[], scorers: { p: P; goals: number }[], mvp?: P | null, rotation = false) {
   const lines = [`🏁 *Resultado — ${fmtDayMonth(m.date, tz)}*`, ""];
-  lines.push(teams.map((t) => `${t.name} ${t.score ?? 0}`).join(" x "));
+  if (rotation) {
+    const pts = (t: (typeof teams)[number]) => (t.wins ?? 0) * 3 + (t.draws ?? 0);
+    [...teams].sort((a, b) => pts(b) - pts(a)).forEach((t, i) => lines.push(`${i + 1}º ${t.name} — ${pts(t)} pts (${t.wins ?? 0}V ${t.draws ?? 0}E ${t.losses ?? 0}D)`));
+  } else lines.push(scoreLine(teams));
   if (scorers.length) {
     lines.push("", "⚽ *Gols*");
     scorers.forEach((s) => lines.push(`${n(s.p)} — ${s.goals}`));

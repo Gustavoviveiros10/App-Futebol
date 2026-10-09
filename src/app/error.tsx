@@ -7,9 +7,9 @@ export default function ErrorPage({ error, reset }: { error: Error & { digest?: 
   const msg = error.message && !error.message.includes("Server Components render") ? error.message : "Algo deu errado. Tente de novo.";
   return (
     <div className="mx-auto flex min-h-[70dvh] max-w-md flex-col items-center justify-center px-6 text-center">
-      <p className="text-5xl">🟨</p>
-      <h1 className="mt-3 text-xl font-extrabold">Opa, falta!</h1>
-      <p className="mt-1 text-black/60">{msg}</p>
+      <span className="h-12 w-9 -rotate-6 rounded-md bg-yellow-400 shadow-[0_10px_30px_-10px_rgb(250_204_21/0.6)]" />
+      <h1 className="mt-6 text-4xl">Opa, falta!</h1>
+      <p className="mt-1 text-fg/60">{msg}</p>
       <div className="mt-6 flex gap-2">
         <button onClick={reset} className="btn-primary">Tentar de novo</button>
         <Link href="/app?todas=1" className="btn-ghost">Início</Link>

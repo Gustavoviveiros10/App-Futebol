@@ -10,7 +10,7 @@ export const metadata = { title: "Editar jogador" };
 
 export default async function EditPlayer({ params }: { params: Promise<{ gid: string; pid: string }> }) {
   const { gid, pid } = await params;
-  const { group, isOrganizer, player: me } = await getMembership(gid);
+  const { group, isOrganizer, isOwner: iAmOwner, player: me } = await getMembership(gid);
   if (!isOrganizer) redirect(`/p/${gid}/jogadores/${pid}`);
   const p = await db.player.findFirst({ where: { id: pid, groupId: gid }, include: { user: { select: { email: true } } } });
   if (!p) notFound();
@@ -20,7 +20,7 @@ export default async function EditPlayer({ params }: { params: Promise<{ gid: st
       <PageHeader title="Editar jogador" back={`/p/${gid}/jogadores/${pid}`} />
       <div className="card p-5">
         <ActionForm action={updatePlayer.bind(null, gid, pid)}>
-          <PlayerFields p={p} defaultMonthly={group.monthlyFeeCents} canSetRole={!!p.userId && p.id !== me.id} />
+          <PlayerFields p={p} defaultMonthly={group.monthlyFeeCents} canSetRole={iAmOwner && !isOwner && !!p.userId && p.id !== me.id} />
           <SubmitButton>Salvar</SubmitButton>
         </ActionForm>
       </div>
@@ -29,7 +29,7 @@ export default async function EditPlayer({ params }: { params: Promise<{ gid: st
         <div className="mt-4 flex flex-col gap-2">
           {p.user && (
             <form action={unlinkAccount.bind(null, gid, pid)}>
-              <p className="mb-2 px-1 text-sm text-black/50">Conta vinculada: {p.user.email}</p>
+              <p className="mb-2 px-1 text-sm text-fg/50">Conta vinculada: {p.user.email}</p>
               <ConfirmButton className="btn-ghost w-full" message="Desvincular a conta deste jogador? Ele poderá entrar de novo pelo convite.">
                 Desvincular conta
               </ConfirmButton>

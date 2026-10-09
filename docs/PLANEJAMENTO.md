@@ -37,7 +37,7 @@ Decisões que saem dessa leitura:
 **Multi-tenant e permissões.** Todas as rotas da pelada ficam em `/p/[groupId]/...`. O layout carrega o vínculo do usuário com aquela pelada (`getMembership`) e devolve 404 se não existir. Toda Server Action recebe o `groupId`, chama `requireMember` ou `requireOrganizer`, e toda consulta/alteração filtra por `groupId` (ex.: `update where { id, groupId }`), então um id de outra pelada nunca é aceito, mesmo forjado.
 
 **Pronto para o futuro.**
-- *Planos*: `Subscription` por pelada + `lib/plans.ts` com limites (Gratuito até 10 jogadores, Pro, Premium). Cobrança real entra trocando a ativação de teste por checkout.
+- *Planos*: `Subscription` por usuário (quem paga é o organizador) + `lib/plans.ts`. Jogador (grátis) entra em peladas por convite; Pro (1 pelada) e Premium (até 3) permitem criar a própria pelada, com 30 dias de teste. Cobrança real entra trocando a ativação de teste por checkout.
 - *Pagamentos*: `Payment.method/provider/externalId` para PIX e gateways (webhook só precisa marcar `PAID`).
 - *Notificações*: tabela `Notification` + `lib/notify.ts`. Hoje grava no app; amanhã o mesmo ponto envia WhatsApp/push.
 

@@ -26,6 +26,8 @@ export async function signUp(_: ActionState, form: FormData): Promise<ActionStat
     data: { name: parsed.data.name, email: parsed.data.email, passwordHash: await hashPassword(parsed.data.password) },
   });
   await createSession(user.id);
+  const next = String(form.get("next") ?? "");
+  if (!next && form.get("perfil") === "organizador") redirect("/app/planos?novo=1");
   redirect(safeNext(form.get("next")));
 }
 

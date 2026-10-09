@@ -10,7 +10,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   await redirectIfLoggedIn(next);
   return (
     <div className="card p-6">
-      <h1 className="mb-5 text-2xl font-extrabold tracking-tight">Entrar</h1>
+      <h1 className="mb-5 text-4xl">Entrar</h1>
       <ActionForm action={signIn}>
         <input type="hidden" name="next" value={next ?? ""} />
         <div>
@@ -24,10 +24,10 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         <SubmitButton pendingText="Entrando...">Entrar</SubmitButton>
       </ActionForm>
       <div className="mt-5 flex flex-col items-center gap-3 text-sm">
-        <Link href="/recuperar-senha" className="text-black/55">Esqueci minha senha</Link>
-        <p className="text-black/55">
+        <Link href="/recuperar-senha" className="text-fg/55">Esqueci minha senha</Link>
+        <p className="text-fg/55">
           Não tem conta?{" "}
-          <Link href={`/cadastro${next ? `?next=${encodeURIComponent(next)}` : ""}`} className="font-semibold text-pitch-700">
+          <Link href={`/cadastro${next ? `?next=${encodeURIComponent(next)}` : ""}`} className="font-semibold text-accent">
             Criar conta grátis
           </Link>
         </p>

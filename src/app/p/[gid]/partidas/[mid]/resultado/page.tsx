@@ -1,15 +1,18 @@
+import { Fragment } from "react";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getMembership } from "@/lib/tenancy";
 import { fmtDayMonth } from "@/lib/format";
 import { Avatar, PageHeader } from "@/components/ui";
 import { ActionForm, SubmitButton } from "@/components/forms";
+import { StarInput } from "@/components/StarInput";
 import { saveResult } from "../../actions";
 
 export const metadata = { title: "Resultado" };
 
-export default async function ResultForm({ params }: { params: Promise<{ gid: string; mid: string }> }) {
+export default async function ResultForm({ params, searchParams }: { params: Promise<{ gid: string; mid: string }>; searchParams: Promise<{ ao_vivo?: string }> }) {
   const { gid, mid } = await params;
+  const sp = await searchParams;
   const { group, isOrganizer } = await getMembership(gid);
   if (!isOrganizer) redirect(`/p/${gid}/partidas/${mid}`);
   const match = await db.match.findFirst({
@@ -18,6 +21,7 @@ export default async function ResultForm({ params }: { params: Promise<{ gid: st
   });
   if (!match || match.status === "CANCELED") notFound();
   const finished = match.status === "FINISHED";
+  const rotation = match.format === "ROTATION";
 
   const sections = [
     ...match.teams.map((t) => ({ key: t.id, title: t.name, list: match.players.filter((p) => p.teamId === t.id), open: true })),
@@ -30,15 +34,33 @@ export default async function ResultForm({ params }: { params: Promise<{ gid: st
     <>
       <PageHeader title="Resultado" subtitle={fmtDayMonth(match.date, group.timezone)} back={`/p/${gid}/partidas/${mid}?aba=resultado`} />
       <ActionForm action={saveResult.bind(null, gid, mid)}>
-        {match.teams.length >= 2 && (
+        {sp.ao_vivo && <p className="rounded-2xl bg-accent/10 px-4 py-3 text-sm font-medium text-accent">{rotation ? "Tabela" : "Placar"} do controle salvo. Agora é só lançar gols e assistências.</p>}
+        {match.teams.length >= 2 && rotation && (
+          <div className="card">
+            <p className="section-title px-0">Vitórias, empates e derrotas</p>
+            <p className="mb-2 text-xs text-fg/50">Sem placar: conta só vitória (3), empate (1) e derrota (0).</p>
+            <div className="grid grid-cols-[1fr_repeat(3,3.5rem)] items-center gap-2 text-center text-xs font-semibold text-fg/50">
+              <span className="text-left">Time</span><span>V</span><span>E</span><span>D</span>
+              {match.teams.map((t) => (
+                <Fragment key={t.id}>
+                  <span className="truncate text-left text-sm font-bold text-fg">{t.name.replace("Time ", "")}</span>
+                  {(["w", "d", "l"] as const).map((k) => (
+                    <input key={k} aria-label={`${{ w: "Vitórias", d: "Empates", l: "Derrotas" }[k]} do ${t.name}`} name={`${k}_${t.id}`} type="number" inputMode="numeric" min={0} defaultValue={{ w: t.wins, d: t.draws, l: t.losses }[k] || ""} placeholder="0" className={small} />
+                  ))}
+                </Fragment>
+              ))}
+            </div>
+          </div>
+        )}
+        {match.teams.length >= 2 && !rotation && (
           <div className="card">
             <p className="section-title px-0">Placar</p>
             <div className="flex items-end justify-center gap-3">
               {match.teams.map((t, i) => (
                 <div key={t.id} className="flex items-end gap-3">
-                  {i > 0 && <span className="pb-3 text-xl font-bold text-black/30">×</span>}
+                  {i > 0 && <span className="pb-3 text-xl font-bold text-fg/30">×</span>}
                   <label className="flex flex-col items-center gap-1">
-                    <span className="text-xs font-bold uppercase text-black/50">{t.name.replace("Time ", "")}</span>
+                    <span className="text-xs font-bold uppercase text-fg/50">{t.name.replace("Time ", "")}</span>
                     <input name={`score_${t.id}`} type="number" inputMode="numeric" min={0} defaultValue={t.score ?? ""} className="input w-20 text-center text-3xl font-black" required />
                   </label>
                 </div>
@@ -47,7 +69,7 @@ export default async function ResultForm({ params }: { params: Promise<{ gid: st
           </div>
         )}
         {match.teams.length < 2 && (
-          <p className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">Sem times sorteados, o placar e as vitórias não são contabilizados. Você ainda pode lançar gols e notas.</p>
+          <p className="rounded-2xl bg-gold/10 px-4 py-3 text-sm text-gold">Sem times sorteados, o placar e as vitórias não são contabilizados. Você ainda pode lançar gols e notas.</p>
         )}
 
         {sections.map((s) => (
@@ -61,20 +83,22 @@ export default async function ResultForm({ params }: { params: Promise<{ gid: st
                     <label className="flex items-center gap-3">
                       <Avatar name={mp.player.name} photo={mp.player.photo} size={32} />
                       <span className="flex-1 truncate font-semibold">{mp.player.nickname || mp.player.name}</span>
-                      <span className="text-xs text-black/50">Jogou</span>
-                      <input type="checkbox" name={`played_${mp.id}`} defaultChecked={played} className="h-5 w-5 accent-pitch-600" />
+                      <span className="text-xs text-fg/50">Jogou</span>
+                      <input type="checkbox" name={`played_${mp.id}`} defaultChecked={played} className="h-5 w-5 accent-accent" />
                     </label>
-                    <div className="mt-2 grid grid-cols-3 gap-2">
-                      <label className="text-center text-[11px] font-semibold text-black/50">⚽ Gols<input className={small} name={`goals_${mp.id}`} type="number" inputMode="numeric" min={0} defaultValue={mp.goals || ""} placeholder="0" /></label>
-                      <label className="text-center text-[11px] font-semibold text-black/50">🎯 Assist.<input className={small} name={`assists_${mp.id}`} type="number" inputMode="numeric" min={0} defaultValue={mp.assists || ""} placeholder="0" /></label>
-                      <label className="text-center text-[11px] font-semibold text-black/50">⭐ Nota<input className={small} name={`rating_${mp.id}`} inputMode="decimal" defaultValue={mp.rating?.toString().replace(".", ",") ?? ""} placeholder="1–10" /></label>
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      <label className="text-center text-[11px] font-semibold text-fg/50">Gols<input className={small} name={`goals_${mp.id}`} type="number" inputMode="numeric" min={0} defaultValue={mp.goals || ""} placeholder="0" /></label>
+                      <label className="text-center text-[11px] font-semibold text-fg/50">Assist.<input className={small} name={`assists_${mp.id}`} type="number" inputMode="numeric" min={0} defaultValue={mp.assists || ""} placeholder="0" /></label>
+                    </div>
+                    <div className="mt-2">
+                      <StarInput name={`rating_${mp.id}`} label="Nota" size={24} defaultValue={mp.rating != null ? Math.round(mp.rating / 2) : null} />
                     </div>
                     <details className="mt-2">
-                      <summary className="cursor-pointer text-xs font-semibold text-black/40">Cartões e defesas</summary>
+                      <summary className="cursor-pointer text-xs font-semibold text-fg/40">Cartões e defesas</summary>
                       <div className="mt-2 grid grid-cols-3 gap-2">
-                        <label className="text-center text-[11px] font-semibold text-black/50">🟨<input className={small} name={`yellow_${mp.id}`} type="number" min={0} max={2} defaultValue={mp.yellowCards || ""} placeholder="0" /></label>
-                        <label className="text-center text-[11px] font-semibold text-black/50">🟥<input className={small} name={`red_${mp.id}`} type="number" min={0} max={1} defaultValue={mp.redCards || ""} placeholder="0" /></label>
-                        <label className="text-center text-[11px] font-semibold text-black/50">🧤 Defesas<input className={small} name={`saves_${mp.id}`} type="number" min={0} defaultValue={mp.saves || ""} placeholder="0" /></label>
+                        <label className="text-center text-[11px] font-semibold text-fg/50">Amarelo<input className={small} name={`yellow_${mp.id}`} type="number" min={0} max={2} defaultValue={mp.yellowCards || ""} placeholder="0" /></label>
+                        <label className="text-center text-[11px] font-semibold text-fg/50">Vermelho<input className={small} name={`red_${mp.id}`} type="number" min={0} max={1} defaultValue={mp.redCards || ""} placeholder="0" /></label>
+                        <label className="text-center text-[11px] font-semibold text-fg/50">Defesas<input className={small} name={`saves_${mp.id}`} type="number" min={0} defaultValue={mp.saves || ""} placeholder="0" /></label>
                       </div>
                     </details>
                   </div>
@@ -83,7 +107,7 @@ export default async function ResultForm({ params }: { params: Promise<{ gid: st
             </div>
           </details>
         ))}
-        <p className="px-1 text-xs text-black/45">A nota (1 a 10) serve só como referência para equilibrar os próximos sorteios.</p>
+        <p className="px-1 text-xs text-fg/45">A nota (1 a 5 estrelas) serve só como referência para equilibrar os próximos sorteios.</p>
         <div className="sticky bottom-24 z-10">
           <SubmitButton className="btn-primary w-full py-4 shadow-lg" pendingText="Salvando...">{finished ? "Salvar alterações" : "Encerrar partida e salvar"}</SubmitButton>
         </div>

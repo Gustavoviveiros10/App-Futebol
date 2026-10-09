@@ -23,6 +23,7 @@ model User {
   players       Player[]
   notifications Notification[]
   ownedGroups   Group[]              @relation("GroupOwner")
+  subscription  Subscription?
 }
 
 model Session {
@@ -49,31 +50,63 @@ model PasswordResetToken {
 // ─── Pelada (tenant) ─────────────────────────────────────
 
 model Group {
-  id               String   @id @default(cuid())
-  name             String
-  description      String?
-  location         String?
-  weekday          Int? // 0 = domingo ... 6 = sábado
-  time             String? // "20:00"
-  durationMin      Int      @default(60)
-  monthlyFeeCents  Int      @default(0)
-  singleFeeCents   Int      @default(0)
-  maxPlayers       Int?
-  teamsCount       Int      @default(2)
-  paymentDueDay    Int      @default(10)
-  timezone         String   @default("America/Sao_Paulo")
-  inviteCode       String   @unique
-  ownerId          String
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id              String      @id @default(cuid())
+  name            String
+  description     String?
+  location        String?
+  address         String? // endereço para o mapa
+  lat             Float?
+  lng             Float?
+  weekday         Int? // 0 = domingo ... 6 = sábado
+  time            String? // "20:00"
+  durationMin     Int         @default(60)
+  monthlyFeeCents Int         @default(0)
+  singleFeeCents  Int         @default(0)
+  maxPlayers      Int?
+  teamsCount      Int         @default(2)
+  paymentDueDay   Int         @default(10)
+  timezone        String      @default("America/Sao_Paulo")
+  format          GameFormat  @default(TWO_TEAMS)
+  access          MatchAccess @default(RESTRICTED) // padrão das novas partidas
+  modality        Modality    @default(SOCIETY)
+  level           Level       @default(INTERMEDIATE)
+  inviteCode      String      @unique
+  ownerId         String
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
 
   owner         User           @relation("GroupOwner", fields: [ownerId], references: [id])
-  subscription  Subscription?
   players       Player[]
   seasons       Season[]
   matches       Match[]
   payments      Payment[]
   notifications Notification[]
+  expenses      Expense[]
+}
+
+/// 2 times (placar) ou vários times em rodízio (pontos: vitória 3, empate 1, derrota 0).
+enum GameFormat {
+  TWO_TEAMS
+  ROTATION
+}
+
+/// Quem pode entrar na partida.
+enum MatchAccess {
+  RESTRICTED // só jogadores da pelada e quem tem o link
+  APPROVAL // aparece na busca; o organizador aprova os pedidos
+  OPEN // aparece na busca; entra direto enquanto houver vaga
+}
+
+enum Modality {
+  FUTSAL
+  SOCIETY
+  FIELD
+}
+
+enum Level {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
 }
 
 enum Plan {
@@ -89,9 +122,10 @@ enum SubscriptionStatus {
   CANCELED
 }
 
+/// Assinatura do organizador (quem paga é a pessoa, não a pelada).
 model Subscription {
   id               String             @id @default(cuid())
-  groupId          String             @unique
+  userId           String             @unique
   plan             Plan               @default(FREE)
   status           SubscriptionStatus @default(ACTIVE)
   currentPeriodEnd DateTime?
@@ -99,7 +133,7 @@ model Subscription {
   externalId       String?
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
-  group            Group              @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 enum Role {
@@ -145,6 +179,8 @@ model Player {
   votesGiven   Vote[]        @relation("Voter")
   votesGot     Vote[]        @relation("Voted")
   mvpOf        Match[]       @relation("MatchMvp")
+  ratingsGiven PeerRating[]  @relation("Rater")
+  ratingsGot   PeerRating[]  @relation("Rated")
 
   @@unique([groupId, userId])
   @@index([groupId])
@@ -181,6 +217,9 @@ model Match {
   date           DateTime
   durationMin    Int         @default(60)
   location       String?
+  address        String?
+  lat            Float?
+  lng            Float?
   singleFeeCents Int         @default(0)
   maxPlayers     Int?
   teamsCount     Int         @default(2)
@@ -188,6 +227,10 @@ model Match {
   votingOpen     Boolean     @default(false)
   mvpPlayerId    String?
   notes          String?
+  format         GameFormat  @default(TWO_TEAMS)
+  access         MatchAccess @default(RESTRICTED)
+  shareCode      String?     @unique // link da partida (presença sem cadastro)
+  startedAt      DateTime?
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
@@ -198,19 +241,26 @@ model Match {
   players  MatchPlayer[]
   votes    Vote[]
   payments Payment[]
+  ratings  PeerRating[]
+  requests JoinRequest[]
+  bbq      Barbecue?
 
   @@index([groupId, date])
+  @@index([access, date])
 }
 
 model Team {
-  id        String        @id @default(cuid())
-  matchId   String
-  name      String
-  color     String // chave de cor: "blue", "yellow", ...
-  score     Int?
-  order     Int           @default(0)
-  match     Match         @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  players   MatchPlayer[]
+  id      String        @id @default(cuid())
+  matchId String
+  name    String
+  color   String // chave de cor: "blue", "yellow", ...
+  score   Int?
+  wins    Int           @default(0) // rodízio
+  draws   Int           @default(0)
+  losses  Int           @default(0)
+  order   Int           @default(0)
+  match   Match         @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  players MatchPlayer[]
 
   @@index([matchId])
 }
@@ -239,7 +289,7 @@ model MatchPlayer {
   yellowCards Int     @default(0)
   redCards    Int     @default(0)
   saves       Int     @default(0)
-  rating      Float? // nota 1-10
+  rating      Float? // nota 1-10 (na tela: estrelas = nota / 2)
 
   match  Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
   player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
@@ -260,6 +310,84 @@ model Vote {
   voted     Player   @relation("Voted", fields: [votedId], references: [id], onDelete: Cascade)
 
   @@unique([matchId, voterId])
+}
+
+/// Avaliação anônima entre jogadores depois da partida (1 a 5 estrelas).
+model PeerRating {
+  id        String   @id @default(cuid())
+  matchId   String
+  raterId   String
+  ratedId   String
+  quality   Int // como joga
+  conduct   Int // como se comporta
+  tags      String[] @default([])
+  createdAt DateTime @default(now())
+  match     Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  rater     Player   @relation("Rater", fields: [raterId], references: [id], onDelete: Cascade)
+  rated     Player   @relation("Rated", fields: [ratedId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, raterId, ratedId])
+  @@index([ratedId])
+}
+
+enum JoinStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+/// Pedido de vaga feito pela busca de partidas (sem conta).
+model JoinRequest {
+  id        String     @id @default(cuid())
+  matchId   String
+  name      String
+  phone     String?
+  status    JoinStatus @default(PENDING)
+  playerId  String?
+  createdAt DateTime   @default(now())
+  match     Match      @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@index([matchId, status])
+}
+
+// ─── Churrasco (ajuda opcional, fora do financeiro) ─────
+
+model Barbecue {
+  id        String      @id @default(cuid())
+  matchId   String      @unique
+  createdAt DateTime    @default(now())
+  match     Match       @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  people    BbqPerson[]
+  items     BbqItem[]
+}
+
+model BbqPerson {
+  id        String    @id @default(cuid())
+  bbqId     String
+  name      String
+  playerId  String?
+  guest     Boolean   @default(false)
+  attending Boolean   @default(true)
+  drinks    Boolean   @default(true)
+  paid      Boolean   @default(false)
+  bbq       Barbecue  @relation(fields: [bbqId], references: [id], onDelete: Cascade)
+  paidItems BbqItem[]
+
+  @@index([bbqId])
+}
+
+model BbqItem {
+  id          String    @id @default(cuid())
+  bbqId       String
+  description String
+  amountCents Int
+  payerId     String
+  drinksOnly  Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  bbq         Barbecue  @relation(fields: [bbqId], references: [id], onDelete: Cascade)
+  payer       BbqPerson @relation(fields: [payerId], references: [id], onDelete: Cascade)
+
+  @@index([bbqId])
 }
 
 // ─── Financeiro ──────────────────────────────────────────
@@ -310,6 +438,31 @@ model Payment {
   @@unique([playerId, type, reference])
   @@unique([playerId, matchId])
   @@index([groupId, status])
+}
+
+enum ExpenseCategory {
+  COURT
+  EQUIPMENT
+  FOOD
+  DRINK
+  REFEREE
+  OTHER
+}
+
+/// Despesa da pelada (saídas do caixa).
+model Expense {
+  id          String          @id @default(cuid())
+  groupId     String
+  description String
+  amountCents Int
+  category    ExpenseCategory @default(OTHER)
+  date        DateTime
+  recurring   Boolean         @default(false) // repete todo mês
+  receipt     String? // foto do comprovante (data URL comprimida)
+  createdAt   DateTime        @default(now())
+  group       Group           @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([groupId, date])
 }
 
 // ─── Notificações ────────────────────────────────────────

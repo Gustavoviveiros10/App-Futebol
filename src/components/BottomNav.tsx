@@ -15,13 +15,13 @@ export function BottomNav({ gid }: { gid: string }) {
     { href: `${base}/financeiro`, label: "Financeiro", icon: Wallet },
   ];
   return (
-    <nav className="safe-bottom fixed inset-x-0 bottom-0 z-30 border-t border-black/5 bg-white/90 backdrop-blur-xl">
+    <nav className="safe-bottom fixed inset-x-0 bottom-0 z-30 border-t border-fg/[0.07] bg-bg/85 backdrop-blur-xl">
       <div className="mx-auto grid max-w-lg grid-cols-5">
         {items.map(({ href, label, icon: Icon, exact }) => {
           const active = exact ? path === href : path.startsWith(href);
           return (
-            <Link key={href} href={href} className={`flex flex-col items-center gap-0.5 pb-1 pt-2 text-[11px] font-semibold ${active ? "text-pitch-700" : "text-black/45"}`}>
-              <span className={`rounded-full px-4 py-1 transition ${active ? "bg-pitch-100" : ""}`}>
+            <Link key={href} href={href} className={`flex flex-col items-center gap-0.5 pb-1 pt-2 text-[10.5px] font-semibold tracking-wide ${active ? "text-fg" : "text-fg/40"}`}>
+              <span className={`relative rounded-full px-4 py-1 transition ${active ? "text-accent" : ""}`}>
                 <Icon size={22} strokeWidth={active ? 2.4 : 2} />
               </span>
               {label}

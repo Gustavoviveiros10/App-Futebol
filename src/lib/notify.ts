@@ -31,3 +31,9 @@ export async function notifyGroup(groupId: string, input: Omit<NotifyInput, "gro
   if (players.length)
     await db.notification.createMany({ data: players.map((p) => ({ ...input, groupId, userId: p.userId! })) });
 }
+
+/** Só para dono e administradores (ex.: pedido de vaga). */
+export async function notifyGroupOrganizers(groupId: string, input: Omit<NotifyInput, "groupId">) {
+  const players = await db.player.findMany({ where: { groupId, active: true, role: "ORGANIZER", userId: { not: null } }, select: { id: true } });
+  await notifyPlayers(players.map((p) => p.id), { ...input, groupId });
+}

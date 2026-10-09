@@ -3,9 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import { requireOrganizer } from "@/lib/tenancy";
+import { MAX_ADMINS, requireOrganizer } from "@/lib/tenancy";
+import { adminCount } from "@/lib/admins";
 import { parseMoney, zonedToUtc } from "@/lib/format";
-import { playerLimit } from "@/lib/plans";
 import { playerSchema } from "@/lib/players";
 import { formObject } from "@/lib/validation";
 import { type ActionState, zodError } from "@/lib/actions";
@@ -19,7 +19,7 @@ function toData(d: ReturnType<typeof playerSchema.parse>, tz: string) {
     billingType: d.billingType,
     monthlyFeeCents: d.billingType === "MONTHLY" && d.monthlyFee ? parseMoney(d.monthlyFee) : null,
     position: d.position,
-    skill: d.skill,
+    skill: d.skill ? d.skill * 2 : undefined,
     ...(d.joinedAt ? { joinedAt: zonedToUtc(d.joinedAt, "12:00", tz) } : {}),
   };
 }
@@ -28,11 +28,6 @@ export async function createPlayer(gid: string, _: ActionState, form: FormData):
   const { group } = await requireOrganizer(gid);
   const parsed = playerSchema.safeParse(formObject(form));
   if (!parsed.success) return zodError(parsed.error.issues);
-  const limit = playerLimit(group.subscription);
-  if (limit != null) {
-    const count = await db.player.count({ where: { groupId: gid, active: true } });
-    if (count >= limit) return { error: `O plano gratuito permite até ${limit} jogadores. Ative o Pro em Ajustes para cadastrar mais.` };
-  }
   const player = await db.player.create({ data: { groupId: gid, ...toData(parsed.data, group.timezone) } });
   // entra como pendente nas partidas abertas
   const open = await db.match.findMany({ where: { groupId: gid, status: { in: ["SCHEDULED", "CLOSED"] } }, select: { id: true } });
@@ -49,8 +44,12 @@ export async function updatePlayer(gid: string, pid: string, _: ActionState, for
   const target = await db.player.findFirst({ where: { id: pid, groupId: gid } });
   if (!target) return { error: "Jogador não encontrado." };
   const role = parsed.data.role ?? target.role;
-  if (target.id === me.id && role !== "ORGANIZER") return { error: "Você não pode tirar seu próprio acesso de organizador." };
-  if (role === "ORGANIZER" && !target.userId) return { error: "Só quem já entrou com conta pode ser organizador." };
+  if (role !== target.role) {
+    if (group.ownerId !== me.userId) return { error: "Só o dono da pelada escolhe os administradores." };
+    if (target.userId === group.ownerId) return { error: "O dono da pelada continua administrador." };
+    if (role === "ORGANIZER" && !target.userId) return { error: "Só quem já entrou com conta pode ser administrador." };
+    if (role === "ORGANIZER" && (await adminCount(gid, group.ownerId)) >= MAX_ADMINS) return { error: `A pelada já tem ${MAX_ADMINS} administradores. Tire um antes de colocar outro.` };
+  }
   await db.player.update({ where: { id: pid }, data: { ...toData(parsed.data, group.timezone), role } });
   revalidatePath(`/p/${gid}`, "layout");
   redirect(`/p/${gid}/jogadores/${pid}`);

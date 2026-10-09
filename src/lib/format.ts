@@ -112,3 +112,51 @@ export const POSITIONS = {
 } as const;
 
 export type PositionKey = keyof typeof POSITIONS;
+
+/** "20:00" + 60 -> "21:00" (passa da meia-noite normalmente) */
+export function addToTime(time: string, minutes: number) {
+  const [h, m] = time.split(":").map(Number);
+  const t = (((h * 60 + m + minutes) % 1440) + 1440) % 1440;
+  return `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
+}
+
+/** Minutos entre início e término; término antes do início = dia seguinte. */
+export function minutesBetween(start: string, end: string) {
+  const [h1, m1] = start.split(":").map(Number);
+  const [h2, m2] = end.split(":").map(Number);
+  const d = h2 * 60 + m2 - (h1 * 60 + m1);
+  return d <= 0 ? d + 1440 : d;
+}
+
+/** "20:00 às 21:00" */
+export function fmtTimeRange(date: Date, durationMin: number, tz = DEFAULT_TZ) {
+  return `${fmtTime(date, tz)} às ${fmtTime(new Date(date.getTime() + durationMin * 60_000), tz)}`;
+}
+
+/** Nota guardada de 1 a 10 -> estrelas de 0,5 a 5. */
+export function toStars(rating: number | null | undefined) {
+  return rating == null ? null : rating / 2;
+}
+
+/** "4,3" */
+export function fmtStars(stars: number | null | undefined) {
+  if (stars == null) return "–";
+  return stars.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+}
+
+type ScoreTeam = { name: string; score: number | null; wins?: number; draws?: number };
+
+/** Placar no formato "Azul 1 × 0 Amarelo"; no rodízio, quem somou mais pontos. */
+export function scoreLine(teams: ScoreTeam[], rotation = false) {
+  const short = (n: string) => n.replace(/^Time /, "");
+  if (rotation) {
+    const pts = (t: ScoreTeam) => (t.wins ?? 0) * 3 + (t.draws ?? 0);
+    const top = [...teams].sort((a, b) => pts(b) - pts(a))[0];
+    return top && pts(top) > 0 ? `${short(top.name)} campeão · ${pts(top)} pts` : "Rodízio";
+  }
+  if (teams.length === 2) {
+    const [a, b] = teams;
+    return `${short(a.name)} ${a.score ?? "-"} × ${b.score ?? "-"} ${short(b.name)}`;
+  }
+  return teams.map((t) => `${short(t.name)} ${t.score ?? "-"}`).join(" · ");
+}

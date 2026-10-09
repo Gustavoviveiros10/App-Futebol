@@ -7,7 +7,7 @@ export default async function ResetPage({ params }: { params: Promise<{ token: s
   const { token } = await params;
   return (
     <div className="card p-6">
-      <h1 className="mb-5 text-2xl font-extrabold tracking-tight">Criar nova senha</h1>
+      <h1 className="mb-5 text-4xl">Criar nova senha</h1>
       <ActionForm action={resetPassword}>
         <input type="hidden" name="token" value={token} />
         <div>

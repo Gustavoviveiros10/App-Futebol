@@ -1,4 +1,4 @@
-# Boleiro — o administrador da sua pelada
+# Jogus Connect — o administrador da sua pelada
 
 > "Você organiza a pelada. O aplicativo cuida do resto."
 

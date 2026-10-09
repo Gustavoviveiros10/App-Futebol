@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { CalendarDays, Plus } from "lucide-react";
 import { db } from "@/lib/db";
 import { getMembership } from "@/lib/tenancy";
 import { Empty, PageHeader } from "@/components/ui";
@@ -31,6 +31,8 @@ export default async function Matches({ params }: { params: Promise<{ gid: strin
       confirmed={m._count.players}
       max={m.maxPlayers}
       teams={m.teams}
+      durationMin={m.durationMin}
+      rotation={m.format === "ROTATION"}
       mvp={m.mvp ? m.mvp.nickname || m.mvp.name : null}
     />
   );
@@ -48,7 +50,7 @@ export default async function Matches({ params }: { params: Promise<{ gid: strin
         }
       />
       {upcoming.length === 0 && past.length === 0 ? (
-        <Empty icon="📅" title="Nenhuma partida ainda" text={isOrganizer ? "Crie a próxima pelada e mande o link no grupo." : "Quando o organizador marcar a próxima, ela aparece aqui."}>
+        <Empty icon={<CalendarDays size={26} />} title="Nenhuma partida ainda" text={isOrganizer ? "Crie a próxima pelada e mande o link no grupo." : "Quando o organizador marcar a próxima, ela aparece aqui."}>
           {isOrganizer && <Link href={`/p/${gid}/partidas/nova`} className="btn-primary">Criar partida</Link>}
         </Empty>
       ) : (

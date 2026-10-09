@@ -7,14 +7,17 @@ import type { Attendance } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireMember, requireOrganizer } from "@/lib/tenancy";
 import { fmtTime, parseMoney, weekdayLong, zonedToUtc } from "@/lib/format";
-import { matchSchema } from "@/lib/matches";
-import { formObject } from "@/lib/validation";
+import { START_EARLY_MIN, canStart, matchSchema } from "@/lib/matches";
+import { formObject, newInviteCode } from "@/lib/validation";
 import { type ActionState, zodError } from "@/lib/actions";
 import { fillOpenSpots, setAttendance } from "@/lib/attendance";
 import { notifyGroup, notifyPlayers } from "@/lib/notify";
 import { TEAM_PRESETS, drawTeams as runDraw, playerStrength, type DrawMode } from "@/lib/draw";
 import { groupStats } from "@/lib/stats";
 import { chargeMatchPlayers } from "@/lib/finance";
+import { FINANCE_PREMIUM, groupPremium } from "@/lib/features";
+import { ALL_TAGS } from "@/lib/ratings";
+import { findOrCreateGuestPlayer } from "@/lib/guest";
 
 const attendance = z.enum(["CONFIRMED", "DECLINED", "MAYBE", "PENDING", "WAITLIST"]);
 
@@ -44,11 +47,17 @@ export async function createMatch(gid: string, _: ActionState, form: FormData): 
       seasonId: season?.id,
       date,
       location: d.location ?? group.location,
+      address: d.address ?? group.address,
+      lat: d.lat ?? group.lat,
+      lng: d.lng ?? group.lng,
       durationMin: d.durationMin,
       singleFeeCents: d.singleFee != null ? parseMoney(d.singleFee) : group.singleFeeCents,
       maxPlayers: d.maxPlayers ?? null,
       teamsCount: d.teamsCount,
       notes: d.notes,
+      format: d.format,
+      access: d.access,
+      shareCode: newInviteCode(),
       players: { create: players.map((p) => ({ playerId: p.id })) },
     },
   });
@@ -78,11 +87,16 @@ export async function updateMatch(gid: string, mid: string, _: ActionState, form
       data: {
         date: zonedToUtc(d.date, d.time, group.timezone),
         location: d.location ?? null,
+        address: d.address ?? null,
+        lat: d.lat ?? null,
+        lng: d.lng ?? null,
         durationMin: d.durationMin,
         singleFeeCents: parseMoney(d.singleFee),
         maxPlayers: d.maxPlayers ?? null,
         teamsCount: d.teamsCount,
         notes: d.notes ?? null,
+        format: d.format,
+        access: d.access,
       },
     });
     // se o limite aumentou, a lista de espera sobe
@@ -209,17 +223,22 @@ export async function saveResult(gid: string, mid: string, _: ActionState, form:
     db.team.findMany({ where: { matchId: mid } }),
     db.matchPlayer.findMany({ where: { matchId: mid } }),
   ]);
+  // estrelas de 1 a 5 na tela; no banco a nota continua de 1 a 10
   const ratingOf = (v: FormDataEntryValue | null) => {
-    const s = String(v ?? "").replace(",", ".").trim();
+    const s = String(v ?? "").trim();
     if (!s) return null;
-    const n = Number.parseFloat(s);
-    return Number.isFinite(n) && n >= 1 && n <= 10 ? Math.round(n * 10) / 10 : undefined;
+    const n = Number.parseInt(s, 10);
+    return Number.isFinite(n) && n >= 1 && n <= 5 ? n * 2 : undefined;
   };
-  for (const mp of mps) if (ratingOf(form.get(`rating_${mp.id}`)) === undefined) return { error: "As notas precisam estar entre 1 e 10." };
+  for (const mp of mps) if (ratingOf(form.get(`rating_${mp.id}`)) === undefined) return { error: "Escolha de 1 a 5 estrelas." };
 
   const wasFinished = match.status === "FINISHED";
   await db.$transaction(async (tx) => {
     for (const t of teams) {
+      if (match.format === "ROTATION") {
+        await tx.team.update({ where: { id: t.id }, data: { score: null, wins: num(form.get(`w_${t.id}`)), draws: num(form.get(`d_${t.id}`)), losses: num(form.get(`l_${t.id}`)) } });
+        continue;
+      }
       const raw = form.get(`score_${t.id}`);
       await tx.team.update({ where: { id: t.id }, data: { score: raw === "" || raw == null ? null : num(raw) } });
     }
@@ -240,7 +259,8 @@ export async function saveResult(gid: string, mid: string, _: ActionState, form:
     }
     await tx.match.update({ where: { id: mid }, data: { status: "FINISHED", votingOpen: wasFinished ? match.votingOpen : true } });
   });
-  const charged = await chargeMatchPlayers(mid);
+  // cobrança automática do avulso só com o financeiro liberado (Premium)
+  const charged = FINANCE_PREMIUM === "all" && !(await groupPremium(gid)) ? 0 : await chargeMatchPlayers(mid);
   if (!wasFinished) {
     const played = mps.filter((mp) => form.get(`played_${mp.id}`) === "on").map((mp) => mp.playerId);
     await notifyPlayers(played, { groupId: gid, type: "MATCH_FINISHED", title: "🏆 Resultado lançado! Vote no craque da partida", link: `/p/${gid}/partidas/${mid}?aba=resultado` });
@@ -291,5 +311,82 @@ export async function reopenVoting(gid: string, mid: string) {
   const match = await getMatch(gid, mid);
   if (match.status !== "FINISHED") throw new Error("Partida ainda não encerrada.");
   await db.match.update({ where: { id: mid }, data: { votingOpen: true, mvpPlayerId: null } });
+  refresh(gid);
+}
+
+const peerSchema = z.object({ quality: z.coerce.number().int().min(1).max(5), conduct: z.coerce.number().int().min(1).max(5) });
+
+/** Avaliação anônima dos colegas que jogaram (qualidade, conduta e tags). */
+export async function ratePlayers(gid: string, mid: string, _: ActionState, form: FormData): Promise<ActionState> {
+  const { player } = await requireMember(gid);
+  const match = await getMatch(gid, mid);
+  if (match.status !== "FINISHED") return { error: "Só dá para avaliar depois que a partida termina." };
+  const me = await db.matchPlayer.findFirst({ where: { matchId: mid, playerId: player.id, played: true } });
+  if (!me) return { error: "Só quem jogou pode avaliar os colegas." };
+  const others = await db.matchPlayer.findMany({ where: { matchId: mid, played: true, playerId: { not: player.id } }, select: { playerId: true } });
+  const rows = others.flatMap(({ playerId }) => {
+    const parsed = peerSchema.safeParse({ quality: form.get(`q_${playerId}`), conduct: form.get(`c_${playerId}`) });
+    if (!parsed.success) return [];
+    const tags = form.getAll(`t_${playerId}`).map(String).filter((t) => ALL_TAGS.includes(t));
+    return [{ ratedId: playerId, ...parsed.data, tags }];
+  });
+  if (!rows.length) return { error: "Dê estrelas de qualidade e conduta para pelo menos um jogador." };
+  await db.$transaction(
+    rows.map((r) =>
+      db.peerRating.upsert({
+        where: { matchId_raterId_ratedId: { matchId: mid, raterId: player.id, ratedId: r.ratedId } },
+        create: { matchId: mid, raterId: player.id, ...r },
+        update: { quality: r.quality, conduct: r.conduct, tags: r.tags },
+      }),
+    ),
+  );
+  refresh(gid);
+  redirect(`/p/${gid}/partidas/${mid}?aba=resultado&avaliado=${rows.length}`);
+}
+
+/** Libera 10 minutos antes do horário e abre o controle da partida. */
+export async function startMatch(gid: string, mid: string) {
+  await requireOrganizer(gid);
+  const match = await getMatch(gid, mid);
+  if (match.status === "CANCELED" || match.status === "FINISHED") throw new Error("Essa partida já terminou.");
+  if (!canStart(match.date)) throw new Error(`Dá para iniciar a partir de ${START_EARLY_MIN} minutos antes do horário.`);
+  if (!match.startedAt) await db.match.update({ where: { id: mid }, data: { startedAt: new Date() } });
+  refresh(gid);
+  redirect(`/p/${gid}/partidas/${mid}/controle`);
+}
+
+const liveSchema = z.array(z.object({ teamId: z.string(), score: z.number().int().min(0).max(99).optional(), w: z.number().int().min(0).max(99).optional(), d: z.number().int().min(0).max(99).optional(), l: z.number().int().min(0).max(99).optional() })).max(6);
+
+/** Salva o placar (2 times) ou a tabela do rodízio que veio do controle. */
+export async function saveLive(gid: string, mid: string, rows: z.infer<typeof liveSchema>) {
+  await requireOrganizer(gid);
+  const match = await getMatch(gid, mid);
+  const data = liveSchema.parse(rows);
+  const teams = await db.team.findMany({ where: { matchId: mid }, select: { id: true } });
+  const ids = new Set(teams.map((t) => t.id));
+  await db.$transaction(
+    data.filter((r) => ids.has(r.teamId)).map((r) =>
+      db.team.update({
+        where: { id: r.teamId },
+        data: match.format === "ROTATION" ? { wins: r.w ?? 0, draws: r.d ?? 0, losses: r.l ?? 0 } : { score: r.score ?? 0 },
+      }),
+    ),
+  );
+  refresh(gid);
+  redirect(`/p/${gid}/partidas/${mid}/resultado?ao_vivo=1`);
+}
+
+/** Pedido de vaga (link público ou busca "Quero jogar"): aprovar cria o jogador e confirma. */
+export async function answerJoinRequest(gid: string, mid: string, rid: string, approve: boolean) {
+  await requireOrganizer(gid);
+  const req = await db.joinRequest.findFirst({ where: { id: rid, matchId: mid, status: "PENDING", match: { groupId: gid } } });
+  if (!req) throw new Error("Pedido não encontrado.");
+  if (!approve) {
+    await db.joinRequest.update({ where: { id: rid }, data: { status: "REJECTED" } });
+  } else {
+    const playerId = await findOrCreateGuestPlayer(gid, req.name, req.phone);
+    await setAttendance(mid, playerId, "CONFIRMED");
+    await db.joinRequest.update({ where: { id: rid }, data: { status: "APPROVED", playerId } });
+  }
   refresh(gid);
 }

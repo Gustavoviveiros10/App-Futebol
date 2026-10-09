@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireOrganizer } from "@/lib/tenancy";
+import { FINANCE_PREMIUM, requirePremium } from "@/lib/features";
 import { generateMonthlyCharges } from "@/lib/finance";
 import { parseMoney, zonedToUtc } from "@/lib/format";
 import { notifyPlayers } from "@/lib/notify";
@@ -14,6 +15,7 @@ const monthKeyRe = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 export async function generateCharges(gid: string, key: string) {
   await requireOrganizer(gid);
+  if (FINANCE_PREMIUM === "all") await requirePremium(gid);
   if (!monthKeyRe.test(key)) throw new Error("Mês inválido.");
   const count = await generateMonthlyCharges(gid, key);
   if (count) {
@@ -31,6 +33,7 @@ async function getPayment(gid: string, id: string) {
 
 export async function markPaid(gid: string, id: string, form: FormData) {
   await requireOrganizer(gid);
+  if (FINANCE_PREMIUM === "all") await requirePremium(gid);
   await getPayment(gid, id);
   const method = z.enum(["PIX", "CASH", "CARD", "TRANSFER", "OTHER"]).catch("PIX").parse(form.get("method"));
   await db.payment.update({ where: { id }, data: { status: "PAID", paidAt: new Date(), method } });
@@ -39,6 +42,7 @@ export async function markPaid(gid: string, id: string, form: FormData) {
 
 export async function markPending(gid: string, id: string) {
   await requireOrganizer(gid);
+  if (FINANCE_PREMIUM === "all") await requirePremium(gid);
   await getPayment(gid, id);
   await db.payment.update({ where: { id }, data: { status: "PENDING", paidAt: null, method: null } });
   revalidatePath(`/p/${gid}`, "layout");
@@ -46,6 +50,7 @@ export async function markPending(gid: string, id: string) {
 
 export async function cancelPayment(gid: string, id: string) {
   await requireOrganizer(gid);
+  if (FINANCE_PREMIUM === "all") await requirePremium(gid);
   await getPayment(gid, id);
   await db.payment.update({ where: { id }, data: { status: "CANCELED" } });
   revalidatePath(`/p/${gid}`, "layout");
@@ -53,6 +58,7 @@ export async function cancelPayment(gid: string, id: string) {
 
 export async function remindPayment(gid: string, id: string) {
   await requireOrganizer(gid);
+  if (FINANCE_PREMIUM === "all") await requirePremium(gid);
   const p = await getPayment(gid, id);
   await notifyPlayers([p.playerId], { groupId: gid, type: "PAYMENT_REMINDER", title: "💰 Você tem um pagamento pendente na pelada", link: `/p/${gid}/financeiro` });
   revalidatePath(`/p/${gid}`, "layout");
@@ -68,6 +74,7 @@ const chargeSchema = z.object({
 
 export async function createCharge(gid: string, _: ActionState, form: FormData): Promise<ActionState> {
   const { group } = await requireOrganizer(gid);
+  if (FINANCE_PREMIUM === "all") await requirePremium(gid);
   const parsed = chargeSchema.safeParse(formObject(form));
   if (!parsed.success) return zodError(parsed.error.issues);
   const d = parsed.data;
@@ -91,4 +98,36 @@ export async function createCharge(gid: string, _: ActionState, form: FormData):
   });
   revalidatePath(`/p/${gid}`, "layout");
   return { ok: paid ? "Pagamento registrado." : "Cobrança criada." };
+}
+
+const expenseSchema = z.object({
+  description: z.string().trim().min(2, "Descreva a despesa.").max(80),
+  amount: z.string().min(1, "Informe o valor."),
+  category: z.enum(["COURT", "EQUIPMENT", "FOOD", "DRINK", "REFEREE", "OTHER"]).default("OTHER"),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida."),
+  recurring: z.string().optional(),
+  receipt: z.string().startsWith("data:image/").max(400_000, "Foto muito grande.").optional(),
+});
+
+/** Saída de dinheiro da pelada (quadra, bola, comida...). */
+export async function createExpense(gid: string, _: ActionState, form: FormData): Promise<ActionState> {
+  const { group } = await requireOrganizer(gid);
+  await requirePremium(gid); // caixa é Premium
+  const parsed = expenseSchema.safeParse(formObject(form));
+  if (!parsed.success) return zodError(parsed.error.issues);
+  const d = parsed.data;
+  const amountCents = parseMoney(d.amount);
+  if (amountCents <= 0) return { error: "Valor inválido." };
+  await db.expense.create({
+    data: { groupId: gid, description: d.description, amountCents, category: d.category, date: zonedToUtc(d.date, "12:00", group.timezone), recurring: d.recurring === "on", receipt: d.receipt },
+  });
+  revalidatePath(`/p/${gid}`, "layout");
+  return { ok: "Despesa lançada." };
+}
+
+export async function deleteExpense(gid: string, id: string) {
+  await requireOrganizer(gid);
+  await requirePremium(gid); // caixa é Premium
+  await db.expense.deleteMany({ where: { id, groupId: gid } });
+  revalidatePath(`/p/${gid}`, "layout");
 }

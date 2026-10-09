@@ -37,7 +37,14 @@ const rand = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
 async function main() {
   await db.user.deleteMany({ where: { email: { in: ["organizador@demo.com", "jogador@demo.com"] } } });
   const hash = await bcrypt.hash("demo1234", 10);
-  const org = await db.user.create({ data: { name: "Gustavo Viveiros", email: "organizador@demo.com", passwordHash: hash } });
+  const org = await db.user.create({
+    data: {
+      name: "Gustavo Viveiros",
+      email: "organizador@demo.com",
+      passwordHash: hash,
+      subscription: { create: { plan: "PRO", status: "TRIALING", currentPeriodEnd: new Date(Date.now() + 30 * DAY) } },
+    },
+  });
   const pla = await db.user.create({ data: { name: "João Silva", email: "jogador@demo.com", passwordHash: hash } });
 
   const now = new Date();
@@ -53,7 +60,6 @@ async function main() {
       teamsCount: 2,
       inviteCode: "demo" + Math.random().toString(36).slice(2, 8),
       ownerId: org.id,
-      subscription: { create: { plan: "PRO", status: "TRIALING", currentPeriodEnd: new Date(now.getTime() + 30 * DAY) } },
       seasons: { create: { name: `Temporada ${now.getFullYear()} — ${now.getMonth() < 6 ? "1º" : "2º"} semestre`, startsAt: new Date(now.getTime() - 120 * DAY) } },
     },
     include: { seasons: true },

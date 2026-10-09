@@ -1,29 +1,36 @@
 import type { Plan, Subscription } from "@prisma/client";
 
-export const PLANS: Record<Plan, { name: string; priceCents: number; maxPlayers: number | null; features: string[] }> = {
+/**
+ * Qualquer pessoa cria conta grátis e participa de peladas como jogador.
+ * Criar e administrar a própria pelada é um recurso pago (Pro/Premium).
+ */
+export const PLANS: Record<Plan, { name: string; priceCents: number; maxGroups: number; tagline: string; features: string[] }> = {
   FREE: {
-    name: "Gratuito",
+    name: "Jogador",
     priceCents: 0,
-    maxPlayers: 10,
-    features: ["Até 10 jogadores", "Partidas e confirmação de presença", "Sorteio de times", "Financeiro básico"],
+    maxGroups: 0,
+    tagline: "Para quem joga",
+    features: ["Entrar em peladas por convite", "Confirmar presença", "Ver times, resultados e rankings", "Acompanhar seu financeiro"],
   },
   PRO: {
     name: "Pro",
     priceCents: 1990,
-    maxPlayers: null,
-    features: ["Jogadores ilimitados", "Financeiro completo", "Sorteio equilibrado", "Estatísticas e rankings", "Histórico completo"],
+    maxGroups: 1,
+    tagline: "Para quem organiza",
+    features: ["Sua própria pelada", "Jogadores ilimitados", "Sorteio equilibrado", "Estatísticas, craque e rankings", "Partidas abertas no Quero jogar"],
   },
   PREMIUM: {
     name: "Premium",
     priceCents: 2990,
-    maxPlayers: null,
-    features: ["Tudo do Pro", "Personalização da pelada", "Recursos avançados (em breve)"],
+    maxGroups: 3,
+    tagline: "Para quem organiza várias",
+    features: ["Tudo do Pro", "Até 3 peladas", "Financeiro completo: mensalidades, avulsos, despesas e caixa", "Divisão do churrasco", "Personalização da pelada"],
   },
 };
 
 export const TRIAL_DAYS = 30;
 
-/** Plano efetivo: assinatura vencida/cancelada volta para o gratuito. */
+/** Plano efetivo: assinatura vencida ou cancelada volta para o gratuito. */
 export function effectivePlan(sub: Subscription | null | undefined): Plan {
   if (!sub) return "FREE";
   if (sub.status === "CANCELED") return "FREE";
@@ -31,6 +38,6 @@ export function effectivePlan(sub: Subscription | null | undefined): Plan {
   return sub.plan;
 }
 
-export function playerLimit(sub: Subscription | null | undefined) {
-  return PLANS[effectivePlan(sub)].maxPlayers;
+export function isTrialing(sub: Subscription | null | undefined) {
+  return !!sub && sub.status === "TRIALING" && !!sub.currentPeriodEnd && sub.currentPeriodEnd > new Date();
 }
