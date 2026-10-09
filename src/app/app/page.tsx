@@ -3,7 +3,7 @@ import { ArrowRight, ChevronRight, Plus, Search } from "lucide-react";
 import { Avatar } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { PLANS, TRIAL_DAYS } from "@/lib/plans";
+import { PLANS, TRIAL_DAYS, TRIAL_ENABLED } from "@/lib/plans";
 import { getUserPlan } from "@/lib/subscription";
 import { fmtTime, money } from "@/lib/format";
 import { START_EARLY_MIN } from "@/lib/matches";
@@ -91,9 +91,9 @@ export default async function MyGroups() {
               <p className="mt-4 font-display text-3xl font-bold uppercase leading-none">Organize a sua pelada</p>
               <p className="mt-2 text-sm leading-relaxed text-fg/60">Assine o Pro para criar sua pelada, cadastrar a galera, controlar presença, sortear times e acompanhar os rankings.</p>
               <Link href="/app/planos?plano=PRO" className="btn-primary mt-5 w-full">
-                Assinar o Pro · {TRIAL_DAYS} dias grátis <ArrowRight size={18} />
+                {TRIAL_ENABLED ? `Assinar o Pro · ${TRIAL_DAYS} dias grátis` : `Assinar o Pro · ${money(PLANS.PRO.priceCents)}/mês`} <ArrowRight size={18} />
               </Link>
-              <p className="mt-2 text-center text-xs text-fg/40">Sem cartão no teste. Depois, {money(PLANS.PRO.priceCents)}/mês.</p>
+              <p className="mt-2 text-center text-xs text-fg/40">{TRIAL_ENABLED ? `Sem cartão no teste. Depois, ${money(PLANS.PRO.priceCents)}/mês.` : "Pix, cartão ou boleto. Cancele quando quiser."}</p>
             </div>
           ) : plan === "PRO" ? (
             <Link href="/app/planos?plano=PREMIUM" className="flex items-center gap-3 rounded-2xl border border-dashed border-fg/15 p-4 transition hover:border-gold/50 hover:bg-surface">

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowRight, BarChart3, Check, MessageCircle, Shuffle, UserCheck, Wallet, Trophy, Search } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
-import { PLANS, TRIAL_DAYS } from "@/lib/plans";
+import { PLANS, TRIAL_DAYS, TRIAL_ENABLED } from "@/lib/plans";
 import { money } from "@/lib/format";
 import { Logo } from "@/components/Logo";
 
@@ -54,7 +54,7 @@ export default async function Home() {
             </span>
             <span className="btn-primary btn-sm">Buscar</span>
           </Link>
-          <p className="mt-4 text-sm text-fg/40">Jogador usa de graça. Organizador assina o Pro, com {TRIAL_DAYS} dias grátis e sem cartão. Já tem conta? <Link href="/login" className="font-semibold text-fg/70 underline-offset-4 hover:underline">Entrar</Link></p>
+          <p className="mt-4 text-sm text-fg/40">Jogador usa de graça. Organizador assina o Pro{TRIAL_ENABLED ? `, com ${TRIAL_DAYS} dias grátis e sem cartão` : ""}. Já tem conta? <Link href="/login" className="font-semibold text-fg/70 underline-offset-4 hover:underline">Entrar</Link></p>
         </div>
       </section>
 
@@ -93,7 +93,7 @@ export default async function Home() {
                 ))}
               </ul>
               <Link href={k === "FREE" ? "/cadastro" : "/cadastro?perfil=organizador"} className={`${k === "PRO" ? "btn-primary" : "btn-ghost"} mt-6`}>
-                {k === "FREE" ? "Criar conta de jogador" : `Testar ${TRIAL_DAYS} dias grátis`}
+                {k === "FREE" ? "Criar conta de jogador" : TRIAL_ENABLED ? `Testar ${TRIAL_DAYS} dias grátis` : `Assinar o ${PLANS[k].name}`}
               </Link>
             </div>
           ))}

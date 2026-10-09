@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { parseMoney } from "@/lib/format";
-import { PLANS, TRIAL_DAYS } from "@/lib/plans";
+import { PLANS, TRIAL_DAYS, TRIAL_ENABLED } from "@/lib/plans";
 import { getUserPlan } from "@/lib/subscription";
 import { type ActionState, zodError } from "@/lib/actions";
 import { formObject, groupDuration, groupSchema, newInviteCode } from "@/lib/validation";
@@ -51,6 +51,7 @@ export async function createGroup(_: ActionState, form: FormData): Promise<Actio
 export async function startTrial(plan: "PRO" | "PREMIUM") {
   const user = await requireUser();
   if (plan !== "PRO" && plan !== "PREMIUM") throw new Error("Plano inválido.");
+  if (!TRIAL_ENABLED) redirect(`/app/planos?plano=${plan}`);
   const sub = await db.subscription.findUnique({ where: { userId: user.id } });
   const end = new Date(Date.now() + TRIAL_DAYS * 86400_000);
   if (sub?.lastPaymentId) {

@@ -1,6 +1,6 @@
 import { Check, CreditCard, TriangleAlert } from "lucide-react";
 import { requireUser } from "@/lib/auth";
-import { PLANS, TRIAL_DAYS } from "@/lib/plans";
+import { PLANS, TRIAL_DAYS, TRIAL_ENABLED } from "@/lib/plans";
 import { getUserPlan } from "@/lib/subscription";
 import { billingEnabled } from "@/lib/asaas";
 import { hasPendingCheckout, isPaying, syncFromAsaas } from "@/lib/billing";
@@ -106,7 +106,7 @@ export default async function Plans({ searchParams }: { searchParams: Promise<{ 
               {k !== "FREE" && (
                 <div className="mt-2">
                   {/* teste grátis: só quem nunca testou nem pagou */}
-                  {!current && !trialUsed && !paying && (
+                  {TRIAL_ENABLED && !current && !trialUsed && !paying && (
                     <form action={startTrial.bind(null, k)} className="mt-3">
                       <SubmitButton className={`${k === focus ? "btn-primary" : "btn-ghost"} w-full`} pendingText="Ativando...">
                         {trialing ? `Testar o ${PLANS[k].name} no lugar` : `Testar ${TRIAL_DAYS} dias grátis`}
@@ -125,7 +125,7 @@ export default async function Plans({ searchParams }: { searchParams: Promise<{ 
                       action={subscribe.bind(null, k)}
                       label={`Assinar por ${money(price)}/mês`}
                       needsDoc={!sub?.customerId}
-                      primary={trialing ? current : trialUsed && k === focus}
+                      primary={trialing ? current : (trialUsed || !TRIAL_ENABLED) && k === focus}
                     />
                   )}
                   {billing && trialing && current && !paying && (
@@ -149,8 +149,8 @@ export default async function Plans({ searchParams }: { searchParams: Promise<{ 
       <p className="mt-4 text-center text-xs leading-relaxed text-fg/40">
         {billing
           ? "Pagamento mensal por Pix, cartão ou boleto, processado pelo Asaas. Cancele quando quiser."
-          : trialUsed
-            ? "Seu período de teste terminou. A assinatura com cartão e PIX chega em breve."
+          : trialUsed || !TRIAL_ENABLED
+            ? "A assinatura com cartão e Pix chega em breve."
             : "O teste é grátis e não pede cartão. A assinatura com cartão e PIX chega em breve; nada é cobrado sem você confirmar."}
       </p>
     </div>
