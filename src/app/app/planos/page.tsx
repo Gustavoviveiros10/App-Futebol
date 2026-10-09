@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { PLANS, TRIAL_DAYS, TRIAL_ENABLED } from "@/lib/plans";
 import { getUserPlan } from "@/lib/subscription";
 import { billingEnabled } from "@/lib/asaas";
-import { hasPendingCheckout, isPaying, syncFromAsaas } from "@/lib/billing";
+import { hasPendingCheckout, hasPendingUpgrade, isPaying } from "@/lib/billing";
 import { fmtDate, money } from "@/lib/format";
 import { PageHeader } from "@/components/ui";
 import { ActionForm, ConfirmButton, SubmitButton } from "@/components/forms";
@@ -17,8 +17,7 @@ export default async function Plans({ searchParams }: { searchParams: Promise<{ 
   const { novo, plano, mudou } = await searchParams;
   const focus = plano === "PREMIUM" ? "PREMIUM" : "PRO";
   const user = await requireUser();
-  let { sub, plan } = await getUserPlan(user.id);
-  if (billingEnabled() && (await syncFromAsaas(sub))) ({ sub, plan } = await getUserPlan(user.id));
+  const { sub, plan } = await getUserPlan(user.id);
   const now = new Date();
   const billing = billingEnabled();
   const paying = isPaying(sub);
@@ -27,6 +26,7 @@ export default async function Plans({ searchParams }: { searchParams: Promise<{ 
   const trialUsed = (!!sub?.currentPeriodEnd && sub.currentPeriodEnd <= now) || !!sub?.lastPaymentId;
   const canceledWithAccess = !!sub?.lastPaymentId && !sub.externalId && plan !== "FREE";
   const pastDue = paying && sub?.status === "PAST_DUE";
+  const upgrading = hasPendingUpgrade(sub);
 
   const subtitle = paying
     ? `Assinatura ${PLANS[plan].name} ativa`
@@ -40,16 +40,18 @@ export default async function Plans({ searchParams }: { searchParams: Promise<{ 
     <div className="mx-auto max-w-md px-4 pb-12">
       <PageHeader title={novo ? "Escolha seu plano" : "Planos"} back="/app?todas=1" subtitle={subtitle} />
 
-      {billing && (pending || pastDue) && sub?.checkoutUrl && (
+      {billing && (pending || pastDue || upgrading) && sub?.checkoutUrl && (
         <div className={`card mb-3 flex flex-col gap-2 p-4 ring-1 ${pastDue ? "ring-red-400/40" : "ring-gold/40"}`} data-testid="billing-pending">
           <p className="flex items-center gap-2 font-bold">
             <TriangleAlert size={17} className={pastDue ? "text-red-400" : "text-gold"} />
-            {pastDue ? "Pagamento em atraso" : `Falta pagar o ${PLANS[sub.pendingPlan ?? plan].name}`}
+            {pastDue ? "Pagamento em atraso" : upgrading ? `Falta pagar a diferença para o ${PLANS[sub.pendingPlan!].name}` : `Falta pagar o ${PLANS[sub.pendingPlan ?? plan].name}`}
           </p>
           <p className="text-sm text-fg/60">
             {pastDue
               ? `Pague a fatura para não perder o ${PLANS[plan].name}${sub.currentPeriodEnd ? ` depois de ${fmtDate(sub.currentPeriodEnd)}` : ""}.`
-              : "Pix e cartão confirmam em instantes. Boleto leva até 3 dias úteis."}
+              : upgrading
+                ? `${money(PLANS[sub.pendingPlan!].priceCents - PLANS[plan].priceCents)} agora para liberar o ${PLANS[sub.pendingPlan!].name}. Depois, ${money(PLANS[sub.pendingPlan!].priceCents)}/mês. Até lá você segue no ${PLANS[plan].name}.`
+                : "Pix e cartão confirmam em instantes. Boleto leva até 3 dias úteis."}
           </p>
           <a href={sub.checkoutUrl} className="btn-primary" target="_blank" rel="noopener noreferrer">Pagar agora</a>
           <a href="/app/planos" className="text-center text-sm font-semibold text-fg/60 underline">Já paguei, atualizar</a>
@@ -62,7 +64,7 @@ export default async function Plans({ searchParams }: { searchParams: Promise<{ 
           <p className="text-sm text-fg/60">
             {PLANS[plan].name}, {money(PLANS[plan].priceCents)}/mês{sub?.currentPeriodEnd ? `. Garantido até ${fmtDate(sub.currentPeriodEnd)}` : ""}.
           </p>
-          {sub?.checkoutUrl && (
+          {sub?.checkoutUrl && !upgrading && (
             <a href={sub.checkoutUrl} className="text-sm font-semibold text-accent underline" target="_blank" rel="noopener noreferrer">Ver fatura do mês</a>
           )}
         </div>

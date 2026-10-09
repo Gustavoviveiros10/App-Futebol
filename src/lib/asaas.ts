@@ -65,6 +65,26 @@ export function createSubscription(s: { customer: string; valueCents: number; de
   });
 }
 
+/** Cobrança avulsa (ex.: diferença do upgrade). A pessoa escolhe Pix, cartão ou boleto na fatura. */
+export function createPayment(p: { customer: string; valueCents: number; description: string; externalReference: string }) {
+  return call<AsaasPayment>("POST", "/payments", {
+    customer: p.customer,
+    billingType: "UNDEFINED",
+    value: p.valueCents / 100,
+    dueDate: today(),
+    description: p.description,
+    externalReference: p.externalReference,
+  });
+}
+
+export function getPayment(id: string) {
+  return call<AsaasPayment>("GET", `/payments/${id}`);
+}
+
+export function deletePayment(id: string) {
+  return call("DELETE", `/payments/${id}`);
+}
+
 export function updateSubscriptionValue(id: string, valueCents: number, description: string) {
   return call("POST", `/subscriptions/${id}`, { value: valueCents / 100, description, updatePendingPayments: true });
 }

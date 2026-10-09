@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { PLANS } from "@/lib/plans";
 import type { ActionState } from "@/lib/actions";
-import { AsaasError, billingEnabled, cancelSubscription, cleanCpfCnpj, createCustomer, createSubscription, firstOpenPayment, updateSubscriptionValue } from "@/lib/asaas";
+import { AsaasError, billingEnabled, cancelSubscription, cleanCpfCnpj, createCustomer, createPayment, createSubscription, deletePayment, firstOpenPayment, updateSubscriptionValue } from "@/lib/asaas";
 import { hasPendingCheckout, isPaying } from "@/lib/billing";
 
 type PaidPlan = "PRO" | "PREMIUM";
@@ -59,7 +59,11 @@ export async function subscribe(plan: PaidPlan, _: ActionState, form: FormData):
   redirect(url);
 }
 
-/** Troca entre Pro e Premium numa assinatura já paga. Vale na hora; o novo valor entra na próxima cobrança. */
+/**
+ * Troca entre Pro e Premium numa assinatura já paga.
+ * Para cima: cobra a diferença do mês numa fatura avulsa e só libera depois do pagamento.
+ * Para baixo: vale na hora e o valor menor entra na próxima cobrança.
+ */
 export async function changePlan(plan: PaidPlan, _state?: ActionState, _form?: FormData): Promise<ActionState> {
   const user = await requireUser();
   if (!paid(plan)) return { error: "Plano inválido." };
@@ -68,12 +72,27 @@ export async function changePlan(plan: PaidPlan, _state?: ActionState, _form?: F
   if (sub!.plan === plan) return { ok: "Você já está nesse plano." };
   if (plan === "PRO" && (await db.group.count({ where: { ownerId: user.id } })) > PLANS.PRO.maxGroups)
     return { error: "Você organiza mais peladas do que o Pro permite. Apague ou passe uma delas antes." };
+  const diff = PLANS[plan].priceCents - PLANS[sub!.plan].priceCents;
+  if (diff > 0) {
+    let url: string | undefined;
+    try {
+      if (sub!.upgradePaymentId) await deletePayment(sub!.upgradePaymentId).catch(() => undefined);
+      const pay = await createPayment({ customer: sub!.customerId!, valueCents: diff, description: `Upgrade para o ${PLANS[plan].name}`, externalReference: `${user.id}:upgrade:${plan}` });
+      url = pay.invoiceUrl;
+      await db.subscription.update({ where: { userId: user.id }, data: { pendingPlan: plan, upgradePaymentId: pay.id, checkoutUrl: url ?? null } });
+    } catch (e) {
+      return fail(e);
+    }
+    if (!url) return { error: "A cobrança foi criada, mas o link não veio. Recarregue a página." };
+    redirect(url);
+  }
   try {
+    if (sub!.upgradePaymentId) await deletePayment(sub!.upgradePaymentId).catch(() => undefined);
     await updateSubscriptionValue(sub!.externalId, PLANS[plan].priceCents, desc(plan));
   } catch (e) {
     return fail(e);
   }
-  await db.subscription.update({ where: { userId: user.id }, data: { plan } });
+  await db.subscription.update({ where: { userId: user.id }, data: { plan, pendingPlan: null, upgradePaymentId: null, checkoutUrl: null } });
   redirect(`/app/planos?mudou=${plan}`);
 }
 
@@ -87,7 +106,8 @@ export async function cancelPlan(_state?: ActionState, _form?: FormData): Promis
   } catch (e) {
     if (!(e instanceof AsaasError && e.status === 404)) return fail(e);
   }
-  await db.subscription.update({ where: { userId: user.id }, data: { externalId: null, pendingPlan: null, checkoutUrl: null } });
+  if (sub.upgradePaymentId) await deletePayment(sub.upgradePaymentId).catch(() => undefined);
+  await db.subscription.update({ where: { userId: user.id }, data: { externalId: null, pendingPlan: null, checkoutUrl: null, upgradePaymentId: null } });
   revalidatePath("/app/planos");
   return { ok: "Assinatura cancelada. Nada mais será cobrado." };
 }
