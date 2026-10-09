@@ -1,5 +1,18 @@
 import { NextResponse } from "next/server";
 import { applyPaymentEvent, applySubscriptionDeleted } from "@/lib/billing";
+import { billingEnabled } from "@/lib/asaas";
+
+export const dynamic = "force-dynamic";
+
+/** Diagnóstico: mostra só se as variáveis chegaram (nunca o valor). */
+export async function GET() {
+  const key = process.env.ASAAS_API_KEY?.trim() ?? "";
+  return NextResponse.json({
+    chave: billingEnabled() ? (key.startsWith("$aact_hmlg_") ? "sandbox" : key.startsWith("$aact_") ? "produção" : "formato desconhecido") : "ausente",
+    ambiente: process.env.ASAAS_ENV ?? "ausente",
+    webhookToken: process.env.ASAAS_WEBHOOK_TOKEN ? "ok" : "ausente",
+  });
+}
 
 /** Webhook do Asaas. Cadastre no painel: URL https://<domínio>/api/asaas com o token de ASAAS_WEBHOOK_TOKEN. */
 export async function POST(req: Request) {
