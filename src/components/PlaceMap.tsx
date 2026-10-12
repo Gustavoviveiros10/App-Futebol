@@ -3,7 +3,7 @@
 import "leaflet/dist/leaflet.css";
 import { useEffect, useRef } from "react";
 import type * as L from "leaflet";
-import { TILE_ATTRIBUTION, TILE_URL } from "@/lib/map";
+import { TILE_OPTIONS, TILE_URL } from "@/lib/map";
 
 /** Mapinha só de leitura com o ponto do local. */
 export function PlaceMap({ lat, lng, className = "h-44" }: { lat: number; lng: number; className?: string }) {
@@ -14,7 +14,7 @@ export function PlaceMap({ lat, lng, className = "h-44" }: { lat: number; lng: n
       const Lf = await import("leaflet");
       if (!alive || !box.current) return;
       map = Lf.map(box.current, { zoomControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false, touchZoom: false, boxZoom: false, keyboard: false }).setView([lat, lng], 15);
-      Lf.tileLayer(TILE_URL, { attribution: TILE_ATTRIBUTION, maxZoom: 19 }).addTo(map);
+      Lf.tileLayer(TILE_URL, TILE_OPTIONS).addTo(map);
       Lf.marker([lat, lng], { icon: Lf.divIcon({ className: "", html: '<div class="jc-dot"></div>', iconSize: [0, 0] }), interactive: false }).addTo(map);
     })();
     return () => { alive = false; map?.remove(); };
