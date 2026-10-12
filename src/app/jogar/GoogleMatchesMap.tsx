@@ -71,7 +71,7 @@ function htmlMarker(g: any, map: any, pos: Pt, html: string, z: number, title: s
 }
 
 /** Mesmo mapa do "Quero jogar", só que do Google (usado enquanto houver cota grátis no mês). */
-export function GoogleMatchesMap({ apiKey, pins, me, selected, onSelect, courts = [], court = null, onCourt, onMove, onFail }: {
+export function GoogleMatchesMap({ apiKey, pins, me, selected, onSelect, courts = [], court = null, onCourt, onMove, onFail, point = null, onMapClick, focus = null }: {
   apiKey: string;
   pins: MapPinData[];
   me: Pt | null;
@@ -83,6 +83,9 @@ export function GoogleMatchesMap({ apiKey, pins, me, selected, onSelect, courts 
   onMove?: (center: Pt) => void;
   /** o Google recusou (chave ou limite diário): volta para o mapa gratuito */
   onFail?: () => void;
+  point?: Pt | null;
+  onMapClick?: (p: Pt) => void;
+  focus?: (Pt & { zoom?: number }) | null;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const G = useRef<any>(null);
@@ -90,8 +93,8 @@ export function GoogleMatchesMap({ apiKey, pins, me, selected, onSelect, courts 
   const pinMk = useRef<any[]>([]);
   const courtMk = useRef<any[]>([]);
   const fitting = useRef(false);
-  const cb = useRef({ onSelect, onCourt, onMove, onFail });
-  cb.current = { onSelect, onCourt, onMove, onFail };
+  const cb = useRef({ onSelect, onCourt, onMove, onFail, onMapClick });
+  cb.current = { onSelect, onCourt, onMove, onFail, onMapClick };
 
   useEffect(() => {
     let alive = true;
@@ -110,7 +113,7 @@ export function GoogleMatchesMap({ apiKey, pins, me, selected, onSelect, courts 
         clickableIcons: false,
         gestureHandling: "greedy",
       });
-      map.current.addListener("click", () => cb.current.onSelect(null));
+      map.current.addListener("click", (e: any) => { cb.current.onSelect(null); if (e.latLng) cb.current.onMapClick?.({ lat: e.latLng.lat(), lng: e.latLng.lng() }); });
       // só conta movimento feito pela pessoa (o enquadramento automático não)
       let byUser = false;
       map.current.addListener("dragstart", () => (byUser = true));
@@ -134,7 +137,13 @@ export function GoogleMatchesMap({ apiKey, pins, me, selected, onSelect, courts 
   useEffect(() => {
     draw(key !== lastKey.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, selected]);
+  }, [key, selected, point?.lat, point?.lng]);
+  useEffect(() => {
+    if (!focus || !map.current) return;
+    fitting.current = true;
+    map.current.setCenter(focus);
+    map.current.setZoom(focus.zoom ?? 16);
+  }, [focus]);
 
   function draw(fit: boolean) {
     const g = G.current, m = map.current;
@@ -145,6 +154,7 @@ export function GoogleMatchesMap({ apiKey, pins, me, selected, onSelect, courts 
     const bounds = new g.maps.LatLngBounds();
     let n = 0;
     if (me) { pinMk.current.push(htmlMarker(g, m, me, '<div class="jc-me" title="Você está aqui"></div>', 0, "Você")); bounds.extend(me); n++; }
+    if (point) { pinMk.current.push(htmlMarker(g, m, point, '<div class="jc-dot" title="Local da pelada"></div>', 900, "Local da pelada")); bounds.extend(point); n++; }
     pins.forEach((p) => {
       const on = p.code === selected;
       pinMk.current.push(htmlMarker(g, m, p, `<span class="jc-pin ${p.access}${on ? " on" : ""}">${p.time}</span>`, on ? 600 : 500, `${p.name} às ${p.time}`, () => cb.current.onSelect(p.code)));

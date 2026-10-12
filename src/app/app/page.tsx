@@ -1,12 +1,13 @@
 import Link from "next/link";
-import { ArrowRight, ChevronRight, Plus, Search } from "lucide-react";
+import { ArrowRight, ChevronRight, Clock, Plus, Search } from "lucide-react";
 import { Avatar } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { PLANS, TRIAL_DAYS } from "@/lib/plans";
-import { trialAvailable } from "@/lib/billing";
+import { canStartTrial, trialAvailable } from "@/lib/billing";
+import { inDays, trialState } from "@/lib/trial";
 import { getUserPlan } from "@/lib/subscription";
-import { fmtTime, money } from "@/lib/format";
+import { fmtDate, fmtTime, money } from "@/lib/format";
 import { START_EARLY_MIN } from "@/lib/matches";
 import { StartMatchButton } from "@/components/StartMatchButton";
 import { startMatch } from "../p/[gid]/partidas/actions";
@@ -19,7 +20,7 @@ export const metadata = { title: "Minhas peladas" };
 
 export default async function MyGroups() {
   const user = await requireUser();
-  const [memberships, { plan, canCreate, owned }] = await Promise.all([
+  const [memberships, { sub, plan, canCreate, owned }] = await Promise.all([
     db.player.findMany({
       where: { userId: user.id, active: true },
       include: {
@@ -35,6 +36,9 @@ export default async function MyGroups() {
     }),
     getUserPlan(user.id),
   ]);
+  // quem já testou não ganha outro teste: o convite vira "assinar"
+  const offerTrial = trialAvailable() && canStartTrial(sub);
+  const trial = trialState(sub);
   const organize = memberships.filter((m) => m.role === "ORGANIZER");
   const play = memberships.filter((m) => m.role !== "ORGANIZER");
   const card = (m: (typeof memberships)[number]) => (
@@ -75,6 +79,29 @@ export default async function MyGroups() {
       <p className="section-title mt-4 px-0">Plano {PLANS[plan].name}</p>
       <h1 className="text-5xl">Olá, {user.name.split(" ")[0]}</h1>
 
+      {trial?.kind === "ending" && (
+        <Link href="/app/planos" className="card mt-5 flex items-center gap-3 ring-1 ring-gold/40 transition hover:bg-surface-2" data-testid="trial-ending">
+          <Clock size={20} className="shrink-0 text-gold" />
+          <span className="flex-1 text-sm">
+            <b className="block">Seu teste grátis do {PLANS[sub!.plan].name} acaba {inDays(trial.days)}</b>
+            <span className="text-fg/60">
+              {trial.card
+                ? `Em ${fmtDate(trial.end)} cobramos ${money(PLANS[sub!.plan].priceCents)}/mês no cartão cadastrado. Para não continuar, cancele antes.`
+                : `Assine até ${fmtDate(trial.end)} para não perder os recursos do ${PLANS[sub!.plan].name}.`}
+            </span>
+          </span>
+          <ChevronRight className="text-fg/25" />
+        </Link>
+      )}
+      {trial?.kind === "ended" && plan === "FREE" && (
+        <div className="card mt-5 flex flex-col gap-3 ring-1 ring-gold/40" data-testid="trial-ended">
+          <p className="flex items-center gap-2 font-bold"><Clock size={18} className="text-gold" /> Seu teste grátis do {PLANS[sub!.plan].name} acabou</p>
+          <p className="text-sm text-fg/60">Sua conta voltou para o plano gratuito e seus dados continuam salvos. Assine para continuar organizando sua pelada.</p>
+          <Link href={`/app/planos?plano=${sub!.plan}`} className="btn-primary w-full">
+            Assinar o {PLANS[sub!.plan].name} · {money(PLANS[sub!.plan].priceCents)}/mês <ArrowRight size={18} />
+          </Link>
+        </div>
+      )}
       <InstallApp className="mt-5" />
 
       {/* Peladas que organizo */}
@@ -87,7 +114,8 @@ export default async function MyGroups() {
               <Plus size={20} /> {owned ? "Criar nova pelada" : "Criar minha pelada"}
             </Link>
           ) : plan === "FREE" ? (
-            <div className="pitch-gradient overflow-hidden rounded-2xl p-5">
+            // teste acabado já tem o aviso com o botão de assinar lá em cima
+            trial?.kind === "ended" ? null : <div className="pitch-gradient overflow-hidden rounded-2xl p-5">
               <div className="flex items-center gap-2">
                 <LogoMark size={22} />
                 <span className="chip bg-accent text-bg">PRO</span>
@@ -95,9 +123,9 @@ export default async function MyGroups() {
               <p className="mt-4 font-display text-3xl font-bold uppercase leading-none">Organize a sua pelada</p>
               <p className="mt-2 text-sm leading-relaxed text-fg/60">Assine o Pro para criar sua pelada, cadastrar a galera, controlar presença, sortear times e acompanhar os rankings.</p>
               <Link href="/app/planos?plano=PRO" className="btn-primary mt-5 w-full">
-                {trialAvailable() ? `Assinar o Pro · ${TRIAL_DAYS} dias grátis` : `Assinar o Pro · ${money(PLANS.PRO.priceCents)}/mês`} <ArrowRight size={18} />
+                {offerTrial ? `Assinar o Pro · ${TRIAL_DAYS} dias grátis` : `Assinar o Pro · ${money(PLANS.PRO.priceCents)}/mês`} <ArrowRight size={18} />
               </Link>
-              <p className="mt-2 text-center text-xs text-fg/40">{trialAvailable() ? `Nada é cobrado no teste. Depois, ${money(PLANS.PRO.priceCents)}/mês.` : "Pix, cartão ou boleto. Cancele quando quiser."}</p>
+              <p className="mt-2 text-center text-xs text-fg/40">{offerTrial ? `Nada é cobrado no teste. Depois, ${money(PLANS.PRO.priceCents)}/mês.` : "Pix, cartão ou boleto. Cancele quando quiser."}</p>
             </div>
           ) : plan === "PRO" ? (
             <Link href="/app/planos?plano=PREMIUM" className="flex items-center gap-3 rounded-2xl border border-dashed border-fg/15 p-4 transition hover:border-gold/50 hover:bg-surface">

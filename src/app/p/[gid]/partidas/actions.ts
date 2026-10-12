@@ -17,7 +17,7 @@ import { groupStats } from "@/lib/stats";
 import { chargeMatchPlayers } from "@/lib/finance";
 import { FINANCE_PREMIUM, groupPremium } from "@/lib/features";
 import { ALL_TAGS } from "@/lib/ratings";
-import { findOrCreateGuestPlayer } from "@/lib/guest";
+import { findOrCreateGuestPlayer, findOrCreateUserPlayer } from "@/lib/guest";
 
 const attendance = z.enum(["CONFIRMED", "DECLINED", "MAYBE", "PENDING", "WAITLIST"]);
 
@@ -384,7 +384,9 @@ export async function answerJoinRequest(gid: string, mid: string, rid: string, a
   if (!approve) {
     await db.joinRequest.update({ where: { id: rid }, data: { status: "REJECTED" } });
   } else {
-    const playerId = await findOrCreateGuestPlayer(gid, req.name, req.phone);
+    const playerId = req.userId
+      ? await findOrCreateUserPlayer(gid, { id: req.userId, name: req.name }, req.phone)
+      : await findOrCreateGuestPlayer(gid, req.name, req.phone);
     await setAttendance(mid, playerId, "CONFIRMED");
     await db.joinRequest.update({ where: { id: rid }, data: { status: "APPROVED", playerId } });
   }

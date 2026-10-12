@@ -4,8 +4,8 @@ import { Beef, Bell, Check, Clock, Flag, HelpCircle, Lock, MapPin, Pencil, Scale
 import type { Attendance } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getMembership } from "@/lib/tenancy";
-import { POSITIONS, fmtDayMonth, fmtTime, fmtTimeRange, money, scoreLine, weekdayLong } from "@/lib/format";
-import { peerSummaries } from "@/lib/ratings";
+import { POSITIONS, fmtStars, fmtDayMonth, fmtTime, fmtTimeRange, money, scoreLine, weekdayLong } from "@/lib/format";
+import { peerProfile, peerSummaries } from "@/lib/ratings";
 import { ensureShareCode } from "@/lib/guest";
 import { LOW_CONDUCT, StarBadge, Stars } from "@/components/Stars";
 import { ACCESS, FORMATS } from "@/lib/labels";
@@ -44,6 +44,13 @@ export default async function MatchPage({ params, searchParams }: { params: Prom
   const tz = group.timezone;
   // estrelas de cada jogador, só para quem organiza
   const peer = isOrganizer ? await peerSummaries(match.players.map((p) => p.playerId)) : null;
+  // histórico de avaliações de quem pede vaga: soma o que a conta recebeu em todas as peladas
+  const requesterHistory = new Map<string, Awaited<ReturnType<typeof peerProfile>>>();
+  if (isOrganizer) {
+    const userIds = [...new Set(match.requests.map((r) => r.userId).filter((u): u is string => !!u))];
+    const owned = userIds.length ? await db.player.findMany({ where: { userId: { in: userIds } }, select: { id: true, userId: true } }) : [];
+    await Promise.all(userIds.map(async (u) => requesterHistory.set(u, await peerProfile(owned.filter((p) => p.userId === u).map((p) => p.id)))));
+  }
   function OrgStars({ p }: { p: { id: string; skill: number } }) {
     if (!peer) return null;
     const s = peer.get(p.id);
@@ -186,21 +193,48 @@ export default async function MatchPage({ params, searchParams }: { params: Prom
             <div>
               <p className="section-title">Pedidos de vaga ({match.requests.length})</p>
               <div className="card divide-y divide-fg/[0.07] p-0">
-                {match.requests.map((r) => (
-                  <div key={r.id} className="flex items-center gap-3 px-4 py-2.5">
-                    <Avatar name={r.name} size={34} />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium">{r.name}</p>
-                      {r.phone && <p className="text-xs text-fg/45">{r.phone}</p>}
+                {match.requests.map((r) => {
+                  const h = r.userId ? requesterHistory.get(r.userId) : undefined;
+                  return (
+                    <div key={r.id} className="flex flex-col gap-2 px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <Avatar name={r.name} size={34} />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-medium">{r.name}</p>
+                          {r.phone && <p className="text-xs text-fg/45">{r.phone}</p>}
+                        </div>
+                      </div>
+                      {!r.userId ? (
+                        <p className="text-xs text-fg/45">Pediu pelo link da pelada, sem conta: sem histórico de avaliações.</p>
+                      ) : !h?.count ? (
+                        <p className="text-xs text-fg/45">Ainda não foi avaliado em nenhuma partida.</p>
+                      ) : (
+                        <div className="flex flex-col gap-1.5 rounded-xl bg-fg/[0.04] px-3 py-2">
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                            <span className="flex items-center gap-1.5"><span className="text-fg/55">Qualidade</span> <Stars value={h.quality} size={12} /> <b>{fmtStars(h.quality!)}</b></span>
+                            <span className={`flex items-center gap-1.5 ${h.conduct != null && h.conduct < LOW_CONDUCT ? "text-red-400" : ""}`}><span className="opacity-70">Conduta</span> <Stars value={h.conduct} size={12} className={h.conduct != null && h.conduct < LOW_CONDUCT ? "text-red-400" : "text-gold"} /> <b>{fmtStars(h.conduct!)}</b></span>
+                            <span className="text-fg/45">{h.count} {h.count === 1 ? "avaliação" : "avaliações"}</span>
+                          </div>
+                          {h.tags.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {h.tags.map((t) => (
+                                <span key={t.tag} className={`chip ${t.bad ? "bg-red-500/15 text-red-400" : "bg-fg/[0.06] text-fg/75"}`}>{t.tag} <b>{t.count}</b></span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      <div className="grid grid-cols-2 gap-2">
+                        <form action={answerJoinRequest.bind(null, gid, mid, r.id, false)}>
+                          <SubmitButton className="btn-ghost btn-sm w-full" pendingText="...">Recusar</SubmitButton>
+                        </form>
+                        <form action={answerJoinRequest.bind(null, gid, mid, r.id, true)}>
+                          <SubmitButton className="btn-primary btn-sm w-full" pendingText="...">Aprovar</SubmitButton>
+                        </form>
+                      </div>
                     </div>
-                    <form action={answerJoinRequest.bind(null, gid, mid, r.id, false)}>
-                      <SubmitButton className="btn-ghost btn-sm" pendingText="...">Recusar</SubmitButton>
-                    </form>
-                    <form action={answerJoinRequest.bind(null, gid, mid, r.id, true)}>
-                      <SubmitButton className="btn-primary btn-sm" pendingText="...">Aprovar</SubmitButton>
-                    </form>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}

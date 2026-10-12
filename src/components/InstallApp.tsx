@@ -2,7 +2,9 @@
 
 /* eslint-disable @next/next/no-img-element */
 import { useEffect, useRef, useState } from "react";
-import { Download, EllipsisVertical, Share, SquarePlus, X } from "lucide-react";
+import Link from "next/link";
+import { Download, X } from "lucide-react";
+import { StepsText } from "./InstallSteps";
 
 type Mode = "prompt" | "android" | "ios";
 type InstallEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: "accepted" | "dismissed" }> };
@@ -85,40 +87,12 @@ export function InstallApp({ dismissible = true, className = "" }: { dismissible
         <button type="button" onClick={() => setSteps(true)} className="btn-ghost mt-3 w-full">
           Ver como instalar
         </button>
-      ) : mode === "ios" ? (
-        <ol className="mt-3 space-y-2 text-sm text-fg/75">
-          <Step n={1}>
-            Toque em <b>Compartilhar</b> <Share size={15} className="inline align-[-2px] text-accent" /> na barra do Safari.
-          </Step>
-          <Step n={2}>
-            Role e toque em <b>Adicionar à Tela de Início</b> <SquarePlus size={15} className="inline align-[-2px] text-accent" />.
-          </Step>
-          <Step n={3}>
-            Toque em <b>Adicionar</b>. Pronto, o Jogus aparece junto com seus apps.
-          </Step>
-          <li className="pt-1 text-xs text-fg/45">Abriu pelo WhatsApp? Abra o link no Safari primeiro.</li>
-        </ol>
       ) : (
-        <ol className="mt-3 space-y-2 text-sm text-fg/75">
-          <Step n={1}>
-            Toque no menu <EllipsisVertical size={15} className="inline align-[-2px] text-accent" /> no canto de cima do navegador.
-          </Step>
-          <Step n={2}>
-            Toque em <b>Instalar app</b> ou <b>Adicionar à tela inicial</b>.
-          </Step>
-          <Step n={3}>Confirme. Pronto, o Jogus aparece junto com seus apps.</Step>
-          <li className="pt-1 text-xs text-fg/45">Abriu pelo WhatsApp? Toque nos três pontos e em &quot;Abrir no Chrome&quot; primeiro.</li>
-        </ol>
+        <div className="mt-3">
+          <StepsText platform={mode === "ios" ? "ios" : "android"} />
+          <Link href="/instalar" className="mt-3 block text-center text-sm font-semibold text-accent">Ver o passo a passo com imagens</Link>
+        </div>
       )}
     </div>
-  );
-}
-
-function Step({ n, children }: { n: number; children: React.ReactNode }) {
-  return (
-    <li className="flex gap-2">
-      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent text-[11px] font-extrabold text-bg">{n}</span>
-      <span>{children}</span>
-    </li>
   );
 }

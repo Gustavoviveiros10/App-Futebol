@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight, LogOut } from "lucide-react";
+import { ChevronRight, LogOut, Smartphone } from "lucide-react";
 import { groupStats } from "@/lib/stats";
 import { peerProfile } from "@/lib/ratings";
 import { fmtStars } from "@/lib/format";
@@ -124,6 +124,11 @@ export default async function Profile() {
         </Link>
 
         <InstallApp dismissible={false} />
+        <Link href="/instalar" className="card flex items-center gap-3 transition hover:bg-surface-2">
+          <Smartphone size={20} className="shrink-0 text-accent" />
+          <p className="flex-1 font-extrabold">Colocar o Jogus na tela do celular</p>
+          <ChevronRight className="text-fg/25" />
+        </Link>
 
         {isPlatformAdmin(user.email) && (
           <Link href="/admin" className="card flex items-center gap-3 transition hover:bg-surface-2">

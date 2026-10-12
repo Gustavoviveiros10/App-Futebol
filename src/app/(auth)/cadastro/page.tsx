@@ -9,11 +9,12 @@ export default async function SignUpPage({ searchParams }: { searchParams: Promi
   const { next, perfil } = await searchParams;
   await redirectIfLoggedIn(next);
   const invited = next?.startsWith("/convite/");
+  const fromMatch = next?.startsWith("/jogar/");
   const org = !invited && perfil === "organizador";
   const tab = (on: boolean) => `rounded-lg py-2 text-center ${on ? "bg-fg/10 text-fg" : "text-fg/50"}`;
   return (
     <div className="card p-6">
-      {!invited && (
+      {!invited && !fromMatch && (
         <div className="mb-5 grid grid-cols-2 gap-1 rounded-xl bg-fg/[0.05] p-1 text-sm font-semibold ring-1 ring-fg/[0.07]">
           <Link href="/cadastro" replace className={tab(!org)}>Sou jogador</Link>
           <Link href="/cadastro?perfil=organizador" replace className={tab(org)}>Sou organizador</Link>
@@ -23,6 +24,8 @@ export default async function SignUpPage({ searchParams }: { searchParams: Promi
       <p className="mb-5 mt-1 text-sm text-fg/55">
         {invited
           ? "Crie sua conta para entrar na pelada."
+          : fromMatch
+            ? "Grátis. Depois do cadastro você volta para a partida e pede sua vaga."
           : org
             ? "Depois do cadastro você assina o plano Pro e monta sua pelada."
             : "Grátis para jogar. Você entra na pelada pelo link de convite do organizador."}
