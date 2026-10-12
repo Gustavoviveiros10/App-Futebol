@@ -41,3 +41,21 @@ export async function findOrCreateGuestPlayer(groupId: string, name: string, pho
   const p = await db.player.create({ data: { groupId, name, phone: phone || null, billingType: "PER_MATCH" } });
   return p.id;
 }
+
+/** Jogador de uma conta dentro da pelada: o já ligado à conta, senão o do mesmo WhatsApp (que passa a ser dela), senão um novo. */
+export async function findOrCreateUserPlayer(groupId: string, user: { id: string; name: string }, phone?: string | null) {
+  const linked = await db.player.findUnique({ where: { groupId_userId: { groupId, userId: user.id } }, select: { id: true, active: true } });
+  if (linked) {
+    if (!linked.active) await db.player.update({ where: { id: linked.id }, data: { active: true } });
+    return linked.id;
+  }
+  const id = await findOrCreateGuestPlayer(groupId, user.name, phone);
+  await db.player.updateMany({ where: { id, userId: null }, data: { userId: user.id } });
+  return id;
+}
+
+/** Último WhatsApp que a conta usou em alguma pelada (para já vir preenchido). */
+export async function lastPhoneOf(userId: string) {
+  const p = await db.player.findFirst({ where: { userId, phone: { not: null } }, orderBy: { updatedAt: "desc" }, select: { phone: true } });
+  return p?.phone ?? "";
+}
