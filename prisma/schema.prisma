@@ -137,6 +137,8 @@ model Subscription {
   lastPaymentId    String? // último pagamento aplicado (webhook idempotente)
   upgradePaymentId String? // cobrança avulsa da diferença ao passar para um plano maior
   checkoutId       String? // checkout do teste grátis (cadastro do cartão) ainda não concluído
+  trialReminderAt  DateTime? // e-mail "seu teste acaba em breve" já enviado
+  trialEndedAt     DateTime? // e-mail "seu teste acabou" já enviado
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
   user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
