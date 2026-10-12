@@ -143,6 +143,10 @@ option {
 .jc-map.leaflet-container .leaflet-control-attribution { background: rgb(8 9 11 / 0.7); color: rgb(241 242 244 / 0.5); font-size: 9px; }
 .jc-map .leaflet-control-attribution a { color: rgb(241 242 244 / 0.7); }
 .jc-map.leaflet-container .leaflet-control-zoom a { background: var(--color-surface-2); color: var(--color-fg); border-color: rgb(255 255 255 / 0.08); }
+/* controles do mapa do Google no tema escuro */
+.jc-map .gm-bundled-control > div > div, .jc-map .gm-control-active { background: var(--color-surface-2) !important; box-shadow: none !important; }
+.jc-map .gm-control-active img { filter: invert(1) brightness(1.6); }
+.jc-map .gm-style-cc div { background: rgb(8 9 11 / 0.7) !important; } .jc-map .gm-style-cc a, .jc-map .gm-style-cc span { color: rgb(241 242 244 / 0.6) !important; }
 .jc-pin { position: relative; transform: translate(-50%, -100%); display: inline-block; white-space: nowrap; font-family: var(--font-display); font-size: 14px; font-weight: 700;
   padding: 4px 8px; border-radius: 9px; color: var(--color-bg); background: var(--color-accent); box-shadow: 0 6px 14px -6px rgb(0 0 0 / .8); cursor: pointer; }
 .jc-pin::after { content: ""; position: absolute; left: 50%; bottom: -5px; margin-left: -5px; border: 5px solid transparent; border-bottom: 0; border-top-color: var(--color-accent); }
