@@ -116,6 +116,12 @@ enum Plan {
   PREMIUM
 }
 
+/// Ciclo de cobrança da assinatura do organizador.
+enum PlanCycle {
+  MONTHLY
+  YEARLY
+}
+
 enum SubscriptionStatus {
   ACTIVE
   TRIALING
@@ -128,6 +134,7 @@ model Subscription {
   id               String             @id @default(cuid())
   userId           String             @unique
   plan             Plan               @default(FREE)
+  cycle            PlanCycle          @default(MONTHLY) // mensal ou anual (vale para a cobrança no Asaas)
   status           SubscriptionStatus @default(ACTIVE)
   currentPeriodEnd DateTime?
   provider         String? // ex.: "stripe", "mercadopago", "asaas"
