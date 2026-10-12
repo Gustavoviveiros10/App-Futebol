@@ -1,7 +1,10 @@
-/** Mapa escuro gratuito (dados do OpenStreetMap, visual da CARTO) e busca de endereço (Nominatim), sem chave de API. */
-export const TILE_URL = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
-export const TILE_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>';
-export const TILE_OPTIONS = { attribution: TILE_ATTRIBUTION, subdomains: "abcd", maxZoom: 20 };
+/**
+ * Mapa gratuito (OpenStreetMap, escurecido por filtro em .jc-map) e busca de endereço (Nominatim), sem chave de API.
+ * É o reserva do mapa do Google. (A CARTO passou a exigir chave e mostrava "API KEY REQUIRED" nos quadradinhos.)
+ */
+export const TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+export const TILE_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+export const TILE_OPTIONS = { attribution: TILE_ATTRIBUTION, maxZoom: 19 };
 export const SAO_PAULO: [number, number] = [-23.5505, -46.6333];
 
 export type Place = { label: string; lat: number; lng: number };
