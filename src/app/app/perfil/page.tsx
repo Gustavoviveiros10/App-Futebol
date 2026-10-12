@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight, LogOut } from "lucide-react";
+import { ChevronRight, LogOut, Smartphone } from "lucide-react";
 import { groupStats } from "@/lib/stats";
 import { peerProfile } from "@/lib/ratings";
 import { fmtStars } from "@/lib/format";
@@ -15,6 +15,7 @@ import { Avatar, PageHeader } from "@/components/ui";
 import { ActionForm, SubmitButton } from "@/components/forms";
 import { signOut } from "../../(auth)/actions";
 import { changePassword, saveName } from "./actions";
+import { InstallApp } from "@/components/InstallApp";
 
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
 
@@ -119,6 +120,13 @@ export default async function Profile() {
             <p className="text-sm text-fg/50">{trialing ? `Teste grátis até ${fmtDate(sub!.currentPeriodEnd!)}` : PLANS[plan].tagline}</p>
           </div>
           <span className="text-sm font-semibold text-accent">Ver planos</span>
+          <ChevronRight className="text-fg/25" />
+        </Link>
+
+        <InstallApp dismissible={false} />
+        <Link href="/instalar" className="card flex items-center gap-3 transition hover:bg-surface-2">
+          <Smartphone size={20} className="shrink-0 text-accent" />
+          <p className="flex-1 font-extrabold">Colocar o Jogus na tela do celular</p>
           <ChevronRight className="text-fg/25" />
         </Link>
 

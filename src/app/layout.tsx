@@ -8,6 +8,7 @@ import { APP_NAME } from "@/lib/actions";
 export const metadata: Metadata = {
   title: { default: `${APP_NAME} — o administrador da sua pelada`, template: `%s · ${APP_NAME}` },
   description: "Você organiza a pelada. O aplicativo cuida do resto: presença, times, financeiro e estatísticas.",
+  appleWebApp: { capable: true, title: "Jogus", statusBarStyle: "black" },
 };
 
 export const viewport: Viewport = {

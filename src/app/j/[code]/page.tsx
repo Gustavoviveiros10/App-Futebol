@@ -8,6 +8,7 @@ import { rememberedPlayer } from "@/lib/guest";
 import { Logo } from "@/components/Logo";
 import { Avatar } from "@/components/ui";
 import { ActionForm, SubmitButton } from "@/components/forms";
+import { InstallApp } from "@/components/InstallApp";
 import { guestForget, guestRespond } from "./actions";
 
 export const metadata = { title: "Confirmar presença" };
@@ -138,6 +139,8 @@ export default async function GuestMatch({ params, searchParams }: { params: Pro
             </div>
           </div>
         )}
+
+        {me && sp.ok === "vou" && <InstallApp />}
 
         {member ? (
           <Link href={`/p/${group.id}/partidas/${match.id}`} className="btn-ghost w-full">Abrir no app</Link>
