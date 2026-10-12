@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { parseMoney } from "@/lib/format";
-import { PLANS, TRIAL_DAYS } from "@/lib/plans";
+import { PLANS } from "@/lib/plans";
 import { getUserPlan } from "@/lib/subscription";
 import { type ActionState, zodError } from "@/lib/actions";
 import { formObject, groupDuration, groupSchema, newInviteCode } from "@/lib/validation";
@@ -45,27 +45,6 @@ export async function createGroup(_: ActionState, form: FormData): Promise<Actio
     },
   });
   redirect(`/p/${group.id}`);
-}
-
-/** Ativa o teste grátis do plano (sem cobrança por enquanto; o checkout entra aqui depois). */
-export async function startTrial(plan: "PRO" | "PREMIUM") {
-  const user = await requireUser();
-  if (plan !== "PRO" && plan !== "PREMIUM") throw new Error("Plano inválido.");
-  const sub = await db.subscription.findUnique({ where: { userId: user.id } });
-  const end = new Date(Date.now() + TRIAL_DAYS * 86400_000);
-  if (sub?.currentPeriodEnd && sub.currentPeriodEnd > new Date()) {
-    // já está em um período ativo: só troca o plano, mantendo a data
-    await db.subscription.update({ where: { userId: user.id }, data: { plan } });
-  } else if (sub?.currentPeriodEnd) {
-    throw new Error("Seu período de teste já terminou. A assinatura com pagamento chega em breve.");
-  } else {
-    await db.subscription.upsert({
-      where: { userId: user.id },
-      create: { userId: user.id, plan, status: "TRIALING", currentPeriodEnd: end },
-      update: { plan, status: "TRIALING", currentPeriodEnd: end },
-    });
-  }
-  redirect("/app/nova");
 }
 
 /** Aceita o link completo do convite ou só o código. */
