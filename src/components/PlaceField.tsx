@@ -1,11 +1,15 @@
 "use client";
 
-import "leaflet/dist/leaflet.css";
 import { useEffect, useRef, useState } from "react";
-import { LocateFixed, MapPin, Search } from "lucide-react";
-import type * as L from "leaflet";
-import { SAO_PAULO, TILE_OPTIONS, TILE_URL, fmtKm, km, searchAddress, searchOsmCourts, type Court, type Place } from "@/lib/map";
-import { searchJogusCourts } from "@/lib/court-actions";
+import dynamic from "next/dynamic";
+import { LandPlot, LocateFixed, MapPin, Search } from "lucide-react";
+import { SAO_PAULO, fmtKm, km, searchAddress, searchOsmCourts, type Court, type Place } from "@/lib/map";
+import { courtsNear, googleMapForThisView, searchJogusCourts } from "@/lib/court-actions";
+
+const loadingMap = () => <div className="absolute inset-0 animate-pulse bg-surface" />;
+const FreeMap = dynamic(() => import("@/app/jogar/MatchesMap").then((m) => m.MatchesMap), { ssr: false, loading: loadingMap });
+const GoogleMap = dynamic(() => import("@/app/jogar/GoogleMatchesMap").then((m) => m.GoogleMatchesMap), { ssr: false, loading: loadingMap });
+type Pt = { lat: number; lng: number };
 
 type V = { location?: string | null; address?: string | null; lat?: number | null; lng?: number | null };
 
@@ -21,33 +25,41 @@ export function PlaceField({ v = {} }: { v?: V }) {
   const [results, setResults] = useState<Place[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
-  const box = useRef<HTMLDivElement>(null);
-  const map = useRef<L.Map | null>(null);
-  const marker = useRef<L.Marker | null>(null);
+  // mapa sempre visível: do Google enquanto houver cota grátis no mês, senão o gratuito
+  const [gkey, setGkey] = useState<string | null | undefined>(undefined);
+  const [focus, setFocus] = useState<(Pt & { zoom?: number }) | null>(null);
+  const [near, setNear] = useState<Court[]>([]);
+  const [nearBusy, setNearBusy] = useState(false);
+  const [moved, setMoved] = useState<Pt | null>(null);
+  const nearCenter = useRef<Pt | null>(null);
 
-  // cria o mapa quando já existe um ponto
   useEffect(() => {
-    if (!pos || !box.current) return;
-    let alive = true;
-    (async () => {
-      const Lf = await import("leaflet");
-      if (!alive || !box.current) return;
-      const icon = Lf.divIcon({ className: "", html: '<div class="jc-dot"></div>', iconSize: [0, 0] });
-      if (!map.current) {
-        map.current = Lf.map(box.current, { zoomControl: true, attributionControl: true }).setView([pos.lat, pos.lng], 16);
-        Lf.tileLayer(TILE_URL, TILE_OPTIONS).addTo(map.current);
-        marker.current = Lf.marker([pos.lat, pos.lng], { icon, draggable: true }).addTo(map.current);
-        marker.current.on("dragend", () => { const p = marker.current!.getLatLng(); setPos({ lat: p.lat, lng: p.lng }); });
-        map.current.on("click", (e: L.LeafletMouseEvent) => { marker.current!.setLatLng(e.latlng); setPos({ lat: e.latlng.lat, lng: e.latlng.lng }); });
-      } else {
-        const cur = marker.current!.getLatLng();
-        if (cur.lat !== pos.lat || cur.lng !== pos.lng) { marker.current!.setLatLng([pos.lat, pos.lng]); map.current.setView([pos.lat, pos.lng], 16); }
-      }
-    })();
-    return () => { alive = false; };
-  }, [pos]);
+    googleMapForThisView().then(setGkey, () => setGkey(null));
+  }, []);
+  // quadras em volta do ponto escolhido (ou de São Paulo), com o mapa já decidido
+  useEffect(() => {
+    if (gkey === undefined) return;
+    loadNear(pos ?? me ?? { lat: SAO_PAULO[0], lng: SAO_PAULO[1] });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gkey]);
 
-  useEffect(() => () => { map.current?.remove(); map.current = null; }, []);
+  async function loadNear(c: Pt) {
+    nearCenter.current = c;
+    setMoved(null);
+    setNearBusy(true);
+    try { setNear(await courtsNear(c.lat, c.lng, 5, !!gkey)); } catch { setNear([]); } finally { setNearBusy(false); }
+  }
+  // o Google recusou: volta ao mapa gratuito (o efeito acima busca as quadras de novo, sem o Google)
+  function googleFailed() {
+    setNear([]);
+    setGkey(null);
+  }
+  // toque numa quadra não pode virar também um toque no mapa
+  const courtTap = useRef(0);
+  function goTo(c: Pt, zoom = 16) {
+    setFocus({ lat: c.lat, lng: c.lng, zoom });
+    if (!nearCenter.current || km(nearCenter.current, c) > 1.5) loadNear(c);
+  }
 
   async function find() {
     const q = address.trim();
@@ -85,6 +97,7 @@ export function PlaceField({ v = {} }: { v?: V }) {
       const here = nearOnly ? await locate() : me ?? pos ?? (await locate());
       if (nearOnly && !here) return setCourtMsg("Não deu para pegar sua localização. Libere a localização do navegador ou busque pelo nome.");
       setCourtMsg("");
+      if (nearOnly && here) goTo(here, 14);
       const near = here ?? { lat: SAO_PAULO[0], lng: SAO_PAULO[1] };
       const [mine, osm] = await Promise.all([
         nearOnly ? Promise.resolve([] as Court[]) : searchJogusCourts(q).catch(() => [] as Court[]),
@@ -102,11 +115,13 @@ export function PlaceField({ v = {} }: { v?: V }) {
     setName(c.name);
     if (c.address) setAddress(c.address);
     setPos({ lat: c.lat, lng: c.lng });
+    goTo(c);
   }
 
   function pick(p: Place) {
     setResults(null);
     setPos({ lat: p.lat, lng: p.lng });
+    goTo(p);
     setMsg("");
   }
 
@@ -183,17 +198,52 @@ export function PlaceField({ v = {} }: { v?: V }) {
           </ul>
         )}
         {msg && <p className="mt-1.5 text-xs text-gold">{msg}</p>}
-        {pos ? (
-          <>
-            <div ref={box} className="jc-map isolate mt-2 h-48 overflow-hidden rounded-xl ring-1 ring-fg/[0.08]" data-testid="place-map" />
-            <p className="mt-1 flex items-center justify-between text-xs text-fg/45">
-              Toque no mapa ou arraste o ponto para ajustar.
-              <button type="button" className="font-semibold text-fg/60 underline" onClick={() => { map.current?.remove(); map.current = null; setPos(null); }}>Tirar do mapa</button>
-            </p>
-          </>
-        ) : (
-          <p className="mt-1 text-xs text-fg/45">Com o endereço no mapa, sua partida aberta aparece no &quot;Quero jogar&quot; para quem está perto.</p>
-        )}
+        <div className="relative isolate mt-2 h-60 overflow-hidden rounded-xl ring-1 ring-fg/[0.08]" data-testid="place-map">
+          {gkey === undefined ? loadingMap() : gkey ? (
+            <GoogleMap
+              apiKey={gkey}
+              onFail={googleFailed}
+              pins={[]}
+              me={me}
+              selected={null}
+              onSelect={() => {}}
+              courts={near}
+              court={pos ? near.find((c) => c.lat === pos.lat && c.lng === pos.lng) ?? null : null}
+              onCourt={(c) => { courtTap.current = Date.now(); setName(c.name); if (c.address) setAddress(c.address); setPos({ lat: c.lat, lng: c.lng }); setCourts(null); }}
+              onMove={(c) => { if (!nearCenter.current || km(nearCenter.current, c) > 1.5) setMoved(c); }}
+              point={pos}
+              onMapClick={(c) => { if (Date.now() - courtTap.current > 400) setPos(c); }}
+              focus={focus}
+            />
+          ) : (
+            <FreeMap
+              pins={[]}
+              me={me}
+              selected={null}
+              onSelect={() => {}}
+              courts={near}
+              court={pos ? near.find((c) => c.lat === pos.lat && c.lng === pos.lng) ?? null : null}
+              onCourt={(c) => { setName(c.name); if (c.address) setAddress(c.address); setPos({ lat: c.lat, lng: c.lng }); setCourts(null); }}
+              onMove={(c) => { if (!nearCenter.current || km(nearCenter.current, c) > 1.5) setMoved(c); }}
+              point={pos}
+              onMapClick={(c) => { if (Date.now() - courtTap.current > 400) setPos(c); }}
+              focus={focus}
+            />
+          )}
+          <span className="pointer-events-none absolute left-2 top-2 z-[500] flex items-center gap-1.5 rounded-full bg-bg/80 px-2.5 py-1 text-[11px] font-bold text-fg/75">
+            <LandPlot size={12} className="text-accent" />
+            {nearBusy ? "Buscando quadras..." : `${near.length} ${near.length === 1 ? "quadra" : "quadras"} na região`}
+          </span>
+          {moved && !nearBusy && (
+            <button type="button" onClick={() => loadNear(moved)} className="absolute left-1/2 top-10 z-[500] flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-[12px] font-extrabold text-bg" data-testid="place-courts-here">
+              <Search size={13} /> Buscar quadras aqui
+            </button>
+          )}
+        </div>
+        <p className="mt-1 flex items-start justify-between gap-3 text-xs text-fg/45">
+          {pos ? "Toque numa quadra para escolher, ou no mapa para marcar o ponto exato." : "Toque numa quadra ou no mapa para marcar o local. Com o ponto no mapa, sua partida aberta aparece no \"Quero jogar\"."}
+          {pos && <button type="button" className="shrink-0 font-semibold text-fg/60 underline" onClick={() => setPos(null)}>Tirar do mapa</button>}
+        </p>
       </div>
     </>
   );

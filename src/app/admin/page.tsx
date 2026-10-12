@@ -44,7 +44,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     db.player.count({ where: { userId: null, createdAt: { gte: d30 } } }),
     db.match.count({ where: { date: { gte: d30, lte: new Date(now) }, status: { not: "CANCELED" } } }),
     db.matchPlayer.count({ where: { status: "CONFIRMED", respondedAt: { gte: d30 } } }),
-    db.subscription.groupBy({ by: ["plan", "status"], _count: true }),
+    db.subscription.groupBy({ by: ["plan", "status", "cycle"], _count: true }),
     db.user.findMany({
       where: q ? { OR: [{ email: { contains: q, mode: "insensitive" } }, { name: { contains: q, mode: "insensitive" } }] } : undefined,
       orderBy: { createdAt: "desc" },
@@ -65,7 +65,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   const trialing = subs.filter((s) => s.status === "TRIALING").reduce((t, s) => t + s._count, 0);
   const mrr = subs
     .filter((s) => s.plan !== "FREE" && s.status === "ACTIVE")
-    .reduce((t, s) => t + s._count * PLANS[s.plan].priceCents, 0);
+    .reduce((t, s) => t + s._count * (s.cycle === "YEARLY" ? Math.round(PLANS[s.plan].yearlyCents / 12) : PLANS[s.plan].priceCents), 0); // anual entra como 1/12 por mês
 
   return (
     <div className="mx-auto max-w-3xl px-4 pb-12">

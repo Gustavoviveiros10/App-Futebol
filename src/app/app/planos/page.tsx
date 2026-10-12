@@ -1,19 +1,21 @@
+import Link from "next/link";
+import type { PlanCycle } from "@prisma/client";
 import { Check, CreditCard, TriangleAlert } from "lucide-react";
 import { requireUser } from "@/lib/auth";
-import { PLANS, TRIAL_DAYS } from "@/lib/plans";
+import { PLANS, TRIAL_DAYS, cycleSuffix, planPrice, upgradeCostCents, yearlyPerMonth } from "@/lib/plans";
 import { getUserPlan } from "@/lib/subscription";
 import { billingEnabled } from "@/lib/asaas";
 import { canStartTrial, hasPendingCheckout, hasPendingTrialCheckout, hasPendingUpgrade, isCardTrial, isPaying, trialAvailable } from "@/lib/billing";
 import { fmtDate, money } from "@/lib/format";
 import { PageHeader } from "@/components/ui";
 import { ActionForm, ConfirmButton, SubmitButton } from "@/components/forms";
-import { cancelPlan, changePlan, startTrial, subscribe } from "./actions";
+import { cancelPlan, changeCycle, changePlan, startTrial, subscribe } from "./actions";
 import { SubscribeForm } from "./SubscribeForm";
 
 export const metadata = { title: "Planos" };
 
-export default async function Plans({ searchParams }: { searchParams: Promise<{ novo?: string; plano?: string; mudou?: string; cartao?: string }> }) {
-  const { novo, plano, mudou, cartao } = await searchParams;
+export default async function Plans({ searchParams }: { searchParams: Promise<{ novo?: string; plano?: string; mudou?: string; cartao?: string; ciclo?: string; trocou?: string }> }) {
+  const { novo, plano, mudou, cartao, ciclo, trocou } = await searchParams;
   const focus = plano === "PREMIUM" ? "PREMIUM" : "PRO";
   const user = await requireUser();
   const { sub, plan } = await getUserPlan(user.id);
@@ -30,6 +32,13 @@ export default async function Plans({ searchParams }: { searchParams: Promise<{ 
   const canTrial = trialAvailable() && canStartTrial(sub);
   const trialCanceled = trialing && !sub!.externalId && !!sub!.customerId && !sub!.checkoutId && !sub!.lastPaymentId;
   const firstCharge = cardTrial ? new Date(sub!.currentPeriodEnd!.getTime() - 3 * 86400_000) : null;
+  // quem já assina vê os preços do ciclo dele; quem vai assinar escolhe entre mensal e anual
+  const subscribed = paying || cardTrial;
+  const myCycle: PlanCycle = sub?.cycle ?? "MONTHLY";
+  const cycle: PlanCycle = subscribed ? myCycle : ciclo === "anual" ? "YEARLY" : "MONTHLY";
+  const per = cycleSuffix(cycle);
+  const otherCycle: PlanCycle = myCycle === "YEARLY" ? "MONTHLY" : "YEARLY";
+  const cycleHref = (c: PlanCycle) => `/app/planos?${new URLSearchParams({ ...(novo ? { novo } : {}), ...(plano ? { plano } : {}), ciclo: c === "YEARLY" ? "anual" : "mensal" })}`;
 
   const subtitle = paying
     ? `Assinatura ${PLANS[plan].name} ativa`
@@ -53,7 +62,7 @@ export default async function Plans({ searchParams }: { searchParams: Promise<{ 
             {pastDue
               ? `Pague a fatura para não perder o ${PLANS[plan].name}${sub.currentPeriodEnd ? ` depois de ${fmtDate(sub.currentPeriodEnd)}` : ""}.`
               : upgrading
-                ? `${money(PLANS[sub.pendingPlan!].priceCents - PLANS[plan].priceCents)} agora para liberar o ${PLANS[sub.pendingPlan!].name}. Depois, ${money(PLANS[sub.pendingPlan!].priceCents)}/mês. Até lá você segue no ${PLANS[plan].name}.`
+                ? `${money(upgradeCostCents(plan, sub.pendingPlan!, myCycle, sub.currentPeriodEnd))} agora para liberar o ${PLANS[sub.pendingPlan!].name}. Depois, ${money(planPrice(sub.pendingPlan!, myCycle))}${cycleSuffix(myCycle)}. Até lá você segue no ${PLANS[plan].name}.`
                 : "Pix e cartão confirmam em instantes. Boleto leva até 3 dias úteis."}
           </p>
           <a href={sub.checkoutUrl} className="btn-primary" target="_blank" rel="noopener noreferrer">Pagar agora</a>
@@ -76,7 +85,7 @@ export default async function Plans({ searchParams }: { searchParams: Promise<{ 
         <div className="card mb-3 flex flex-col gap-1 p-4" data-testid="trial-active">
           <p className="flex items-center gap-2 font-bold"><CreditCard size={17} className="text-accent" /> Teste grátis do {PLANS[plan].name}</p>
           <p className="text-sm text-fg/60">
-            Grátis até {fmtDate(firstCharge!)}. Depois, {money(PLANS[plan].priceCents)}/mês no cartão cadastrado. Cancele antes e nada é cobrado.
+            Grátis até {fmtDate(firstCharge!)}. Depois, {money(planPrice(plan, myCycle))}{cycleSuffix(myCycle)} no cartão cadastrado. Cancele antes e nada é cobrado.
           </p>
         </div>
       )}
@@ -85,16 +94,32 @@ export default async function Plans({ searchParams }: { searchParams: Promise<{ 
         <div className="card mb-3 flex flex-col gap-1 p-4" data-testid="billing-active">
           <p className="flex items-center gap-2 font-bold"><CreditCard size={17} className="text-accent" /> Assinatura ativa</p>
           <p className="text-sm text-fg/60">
-            {PLANS[plan].name}, {money(PLANS[plan].priceCents)}/mês{sub?.currentPeriodEnd ? `. Garantido até ${fmtDate(sub.currentPeriodEnd)}` : ""}.
+            {PLANS[plan].name}, {money(planPrice(plan, myCycle))}{cycleSuffix(myCycle)}{sub?.currentPeriodEnd ? `. Garantido até ${fmtDate(sub.currentPeriodEnd)}` : ""}.
           </p>
           {sub?.checkoutUrl && !upgrading && (
-            <a href={sub.checkoutUrl} className="text-sm font-semibold text-accent underline" target="_blank" rel="noopener noreferrer">Ver fatura do mês</a>
+            <a href={sub.checkoutUrl} className="text-sm font-semibold text-accent underline" target="_blank" rel="noopener noreferrer">Ver fatura em aberto</a>
           )}
         </div>
       )}
 
       {mudou && (paying || cardTrial) && mudou === plan && (
         <div className="mb-3 rounded-2xl bg-accent/10 px-4 py-3 text-sm font-medium text-accent">Pronto, agora você está no {PLANS[plan].name}. O novo valor vale a partir da {cardTrial ? "primeira" : "próxima"} cobrança.</div>
+      )}
+
+      {billing && subscribed && !upgrading && !pastDue && plan !== "FREE" && (
+        <ActionForm action={changeCycle.bind(null, otherCycle)} className="card mb-3 flex flex-col gap-2 p-4">
+          <p className="text-sm text-fg/65">
+            {otherCycle === "YEARLY"
+              ? `Pague por ano e ganhe 2 meses: ${money(PLANS[plan].yearlyCents)}/ano (${money(yearlyPerMonth(plan))}/mês), economia de ${money(PLANS[plan].priceCents * 12 - PLANS[plan].yearlyCents)}.`
+              : `Prefere pagar mês a mês? Fica ${money(PLANS[plan].priceCents)}/mês${cardTrial ? "" : " quando o ano pago acabar"}.`}
+            {" "}Nada é cobrado agora: a mudança vale a partir da {cardTrial ? "primeira" : "próxima"} cobrança.
+          </p>
+          <SubmitButton className="btn-ghost w-full" pendingText="Mudando...">{otherCycle === "YEARLY" ? "Mudar para o anual" : "Mudar para o mensal"}</SubmitButton>
+        </ActionForm>
+      )}
+
+      {trocou && subscribed && (
+        <div className="mb-3 rounded-2xl bg-accent/10 px-4 py-3 text-sm font-medium text-accent">Pronto, sua cobrança agora é {myCycle === "YEARLY" ? "anual" : "mensal"}.</div>
       )}
 
       {trialCanceled && (
@@ -109,10 +134,19 @@ export default async function Plans({ searchParams }: { searchParams: Promise<{ 
         </div>
       )}
 
+      {billing && !subscribed && (
+        <div className="mb-3 grid grid-cols-2 gap-1 rounded-2xl bg-surface p-1 text-center text-sm font-semibold" data-testid="cycle-toggle">
+          <Link href={cycleHref("MONTHLY")} replace scroll={false} className={`rounded-xl px-3 py-2 ${cycle === "MONTHLY" ? "bg-fg/10" : "text-fg/50"}`}>Mensal</Link>
+          <Link href={cycleHref("YEARLY")} replace scroll={false} className={`rounded-xl px-3 py-2 ${cycle === "YEARLY" ? "bg-fg/10" : "text-fg/50"}`}>
+            Anual <span className="text-accent">· 2 meses grátis</span>
+          </Link>
+        </div>
+      )}
+
       <div className="flex flex-col gap-3">
         {(focus === "PREMIUM" ? (["PREMIUM", "PRO", "FREE"] as const) : (["PRO", "PREMIUM", "FREE"] as const)).map((k) => {
           const current = plan === k;
-          const price = PLANS[k].priceCents;
+          const price = planPrice(k, cycle);
           return (
             <div key={k} className={`card p-5 ${k === focus ? "ring-2 ring-accent/80" : ""}`} data-testid={`plan-${k}`}>
               <div className="flex items-start justify-between gap-3">
@@ -124,8 +158,11 @@ export default async function Plans({ searchParams }: { searchParams: Promise<{ 
               </div>
               <p className="mt-3 font-display text-5xl font-bold">
                 {price ? money(price) : "Grátis"}
-                {price > 0 && <span className="ml-1 font-sans text-sm font-medium text-fg/40">/mês</span>}
+                {price > 0 && <span className="ml-1 font-sans text-sm font-medium text-fg/40">{per}</span>}
               </p>
+              {price > 0 && cycle === "YEARLY" && (
+                <p className="mt-1 text-sm text-fg/55">Sai por {money(yearlyPerMonth(k))}/mês. Economia de {money(PLANS[k].priceCents * 12 - price)} no ano.</p>
+              )}
               <ul className="mt-4 space-y-2 text-sm text-fg/70">
                 {PLANS[k].features.map((f) => (
                   <li key={f} className="flex gap-2">
@@ -139,7 +176,7 @@ export default async function Plans({ searchParams }: { searchParams: Promise<{ 
                   {/* teste grátis com cartão: só quem nunca testou nem assinou */}
                   {canTrial && !trialPending && (
                     <SubscribeForm
-                      action={startTrial.bind(null, k)}
+                      action={startTrial.bind(null, k, cycle)}
                       label={`Testar ${TRIAL_DAYS} dias grátis`}
                       submitLabel="Cadastrar cartão"
                       needsDoc={!sub?.customerId}
@@ -153,10 +190,10 @@ export default async function Plans({ searchParams }: { searchParams: Promise<{ 
                     </ActionForm>
                   )}
 
-                  {billing && !paying && !cardTrial && !(pending && sub?.pendingPlan === k) && (
+                  {billing && !paying && !cardTrial && !(pending && sub?.pendingPlan === k && myCycle === cycle) && (
                     <SubscribeForm
-                      action={subscribe.bind(null, k)}
-                      label={canTrial ? "Ou assine já, com Pix ou boleto" : `Assinar por ${money(price)}/mês`}
+                      action={subscribe.bind(null, k, cycle)}
+                      label={canTrial ? "Ou assine já, com Pix ou boleto" : `Assinar por ${money(price)}${per}`}
                       needsDoc={!sub?.customerId}
                       primary={!canTrial && (trialing ? current : k === focus)}
                       subtle={canTrial}
@@ -165,7 +202,7 @@ export default async function Plans({ searchParams }: { searchParams: Promise<{ 
                   {!billing && !current && (
                     <button type="button" disabled className="btn-ghost mt-3 w-full opacity-60">Assinatura em breve</button>
                   )}
-                  {canTrial && !trialPending && <p className="mt-2 text-center text-xs text-fg/45">Nada é cobrado nos {TRIAL_DAYS} dias. Depois, {money(price)}/mês. Cancele quando quiser.</p>}
+                  {canTrial && !trialPending && <p className="mt-2 text-center text-xs text-fg/45">Nada é cobrado nos {TRIAL_DAYS} dias. Depois, {money(price)}{per}. Cancele quando quiser.</p>}
                   {billing && trialing && current && !paying && !cardTrial && (
                     <p className="mt-2 text-center text-xs text-fg/45">Assinando agora você não perde os dias de teste que faltam.</p>
                   )}
@@ -186,7 +223,7 @@ export default async function Plans({ searchParams }: { searchParams: Promise<{ 
 
       <p className="mt-4 text-center text-xs leading-relaxed text-fg/40">
         {billing
-          ? "Pagamento mensal processado pelo Asaas. Cancele quando quiser."
+          ? "Pagamento mensal ou anual processado pelo Asaas. Cancele quando quiser."
           : "A assinatura com cartão e Pix chega em breve."}
       </p>
     </div>

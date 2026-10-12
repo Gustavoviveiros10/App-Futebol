@@ -10,7 +10,7 @@ export type MapPinData = { code: string; lat: number; lng: number; time: string;
 type Pt = { lat: number; lng: number };
 
 /** Mapa com um pino por partida e, por baixo, as quadras da região. */
-export function MatchesMap({ pins, me, selected, onSelect, courts = [], court = null, onCourt, onMove }: {
+export function MatchesMap({ pins, me, selected, onSelect, courts = [], court = null, onCourt, onMove, point = null, onMapClick, focus = null }: {
   pins: MapPinData[];
   me: Pt | null;
   selected: string | null;
@@ -20,13 +20,18 @@ export function MatchesMap({ pins, me, selected, onSelect, courts = [], court = 
   onCourt?: (c: Court) => void;
   /** centro do mapa depois que a pessoa arrasta ou dá zoom */
   onMove?: (center: Pt) => void;
+  /** ponto escolhido (local da pelada) e toque no mapa para escolher */
+  point?: Pt | null;
+  onMapClick?: (p: Pt) => void;
+  /** quando muda, o mapa vai até esse ponto */
+  focus?: (Pt & { zoom?: number }) | null;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const layer = useRef<L.LayerGroup | null>(null);
   const courtLayer = useRef<L.LayerGroup | null>(null);
-  const cb = useRef({ onCourt, onMove });
-  cb.current = { onCourt, onMove };
+  const cb = useRef({ onCourt, onMove, onMapClick });
+  cb.current = { onCourt, onMove, onMapClick };
   const Lref = useRef<typeof L | null>(null);
   const pick = useRef(onSelect);
   pick.current = onSelect;
@@ -42,7 +47,7 @@ export function MatchesMap({ pins, me, selected, onSelect, courts = [], court = 
       Lf.tileLayer(TILE_URL, TILE_OPTIONS).addTo(map.current);
       courtLayer.current = Lf.layerGroup().addTo(map.current);
       layer.current = Lf.layerGroup().addTo(map.current);
-      map.current.on("click", () => pick.current(null));
+      map.current.on("click", (e: L.LeafletMouseEvent) => { pick.current(null); cb.current.onMapClick?.({ lat: e.latlng.lat, lng: e.latlng.lng }); });
       // só conta movimento feito pela pessoa (o enquadramento automático não)
       map.current.on("dragend zoomend", () => { if (!fitting.current) { const c = map.current!.getCenter(); cb.current.onMove?.({ lat: c.lat, lng: c.lng }); } });
       draw(true);
@@ -59,7 +64,13 @@ export function MatchesMap({ pins, me, selected, onSelect, courts = [], court = 
   useEffect(() => {
     draw(key !== lastKey.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, selected]);
+  }, [key, selected, point?.lat, point?.lng]);
+  useEffect(() => {
+    if (!focus || !map.current) return;
+    fitting.current = true;
+    map.current.setView([focus.lat, focus.lng], focus.zoom ?? 16);
+    setTimeout(() => (fitting.current = false), 400);
+  }, [focus]);
 
   function draw(fit: boolean) {
     const Lf = Lref.current, m = map.current, g = layer.current;
@@ -70,6 +81,10 @@ export function MatchesMap({ pins, me, selected, onSelect, courts = [], court = 
     if (me) {
       Lf.marker([me.lat, me.lng], { icon: Lf.divIcon({ className: "", html: '<div class="jc-me" title="Você está aqui"></div>', iconSize: [0, 0] }), interactive: false }).addTo(g);
       pts.push([me.lat, me.lng]);
+    }
+    if (point) {
+      Lf.marker([point.lat, point.lng], { icon: Lf.divIcon({ className: "", html: '<div class="jc-dot" title="Local da pelada"></div>', iconSize: [0, 0] }), interactive: false, zIndexOffset: 2000 }).addTo(g);
+      pts.push([point.lat, point.lng]);
     }
     pins.forEach((p) => {
       const cls = `jc-pin ${p.access}${p.code === selected ? " on" : ""}`;

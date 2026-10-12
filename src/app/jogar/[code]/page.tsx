@@ -1,14 +1,15 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { MapPin, Navigation, Send, Check } from "lucide-react";
+import { MapPin, Navigation, Send, Check, UserRound } from "lucide-react";
 import { directionsUrl } from "@/lib/map";
 import { PlaceMap } from "@/components/PlaceMap";
 import { db } from "@/lib/db";
 import { fmtDayMonth, fmtTimeRange, initials, money, weekdayLong } from "@/lib/format";
 import { LEVELS, MODALITIES } from "@/lib/labels";
-import { rememberedPlayer } from "@/lib/guest";
+import { lastPhoneOf, rememberedPlayer } from "@/lib/guest";
+import { getCurrentUser } from "@/lib/auth";
 import { ActionForm, SubmitButton } from "@/components/forms";
-import { guestRespond } from "@/app/j/[code]/actions";
+import { requestSpot } from "./actions";
 
 export const metadata = { title: "Partida pública" };
 
@@ -18,7 +19,7 @@ export default async function PublicMatch({ params, searchParams }: { params: Pr
   const match = await db.match.findUnique({
     where: { shareCode: code },
     include: {
-      group: { select: { id: true, name: true, location: true, address: true, lat: true, lng: true, modality: true, level: true, timezone: true, inviteCode: true, owner: { select: { name: true } }, _count: { select: { matches: { where: { status: "FINISHED" } } } } } },
+      group: { select: { id: true, name: true, location: true, address: true, lat: true, lng: true, modality: true, level: true, timezone: true, owner: { select: { name: true } }, _count: { select: { matches: { where: { status: "FINISHED" } } } } } },
       _count: { select: { players: { where: { status: "CONFIRMED" } } } },
     },
   });
@@ -53,11 +54,6 @@ export default async function PublicMatch({ params, searchParams }: { params: Pr
             : `${org} vai analisar e você recebe a resposta no WhatsApp.`}
         </p>
         <Link href="/jogar" className="btn-ghost mt-2 w-full">Ver outras partidas</Link>
-        <div className="card mt-3 flex w-full flex-col gap-2 text-left">
-          <p className="font-extrabold">Jogue mais vezes com menos esforço</p>
-          <p className="text-sm text-fg/55">Com uma conta você salva suas partidas favoritas, recebe aviso quando abrir vaga perto e monta seu histórico. Opcional.</p>
-          <Link href={`/convite/${group.inviteCode}`} className="btn-primary">Criar minha conta</Link>
-        </div>
       </div>
     );
   }
@@ -65,7 +61,9 @@ export default async function PublicMatch({ params, searchParams }: { params: Pr
   const spots = match.maxPlayers ? Math.max(0, match.maxPlayers - match._count.players) : null;
   const fill = match.maxPlayers ? Math.round((match._count.players / match.maxPlayers) * 100) : 0;
   const closed = match.status !== "SCHEDULED";
-  const action = guestRespond.bind(null, code);
+  const user = await getCurrentUser();
+  const action = requestSpot.bind(null, code);
+  const back = encodeURIComponent(`/jogar/${code}`);
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-md flex-col gap-4 px-4 pb-12 pt-4">
@@ -122,16 +120,33 @@ export default async function PublicMatch({ params, searchParams }: { params: Pr
           <Link href="/jogar" className="btn-ghost mt-3 w-full">Ver outras partidas</Link>
         </div>
       ) : (
-        <ActionForm action={action} className="flex flex-col gap-3">
-          <input type="hidden" name="origem" value="jogar" />
+        <div className="flex flex-col gap-3">
           <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-fg/40">{open ? "Entrar na partida" : "Pedir vaga"}</p>
-          <input className="input" name="name" placeholder="Seu nome" aria-label="Seu nome" required />
-          <input className="input" name="phone" type="tel" inputMode="tel" placeholder="Seu WhatsApp" aria-label="Seu WhatsApp" required />
-          <SubmitButton name="status" value="CONFIRMED" className="btn-primary py-4 text-base" pendingText="Enviando...">{open ? "Entrar na partida" : "Pedir vaga"}</SubmitButton>
-          <p className="text-center text-xs text-fg/45">
-            {open ? "Partida aberta: você entra direto e recebe a confirmação no WhatsApp. Sem cadastro." : "O organizador aprova e você recebe a confirmação no WhatsApp. Sem cadastro."}
-          </p>
-        </ActionForm>
+          {user ? (
+            <ActionForm action={action} className="flex flex-col gap-3">
+              <div className="flex items-center gap-3 rounded-xl bg-surface p-3 ring-1 ring-fg/[0.07]">
+                <i className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-2 text-xs font-extrabold not-italic">{initials(user.name)}</i>
+                <span className="flex min-w-0 flex-col">
+                  <b className="truncate">{user.name}</b>
+                  <small className="truncate text-fg/55">{user.email}</small>
+                </span>
+              </div>
+              <input className="input" name="phone" type="tel" inputMode="tel" placeholder="Seu WhatsApp" aria-label="Seu WhatsApp" defaultValue={await lastPhoneOf(user.id)} required />
+              <SubmitButton className="btn-primary py-4 text-base" pendingText="Enviando...">{open ? "Entrar na partida" : "Pedir vaga"}</SubmitButton>
+              <p className="text-center text-xs text-fg/45">
+                {open ? "Partida aberta: você entra direto e recebe a confirmação no WhatsApp." : "O organizador vê seu histórico de avaliações, aprova e você recebe a confirmação no WhatsApp."}
+              </p>
+            </ActionForm>
+          ) : (
+            <div className="card flex flex-col gap-3 text-center">
+              <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-accent/10 text-accent"><UserRound size={22} /></span>
+              <p className="font-bold">{open ? "Entre na sua conta para jogar" : "Entre na sua conta para pedir vaga"}</p>
+              <p className="text-sm text-fg/55">É grátis. Com a conta, o organizador conhece seu histórico de avaliações e você monta o seu.</p>
+              <Link href={`/cadastro?next=${back}`} className="btn-primary py-4 text-base">Criar conta grátis</Link>
+              <Link href={`/login?next=${back}`} className="btn-ghost">Já tenho conta</Link>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

@@ -1,15 +1,17 @@
 import "server-only";
-import type { Plan, Subscription } from "@prisma/client";
+import type { Plan, PlanCycle, Subscription } from "@prisma/client";
 import { db } from "./db";
-import { PLANS, TRIAL_ENABLED } from "./plans";
+import { PLANS, TRIAL_ENABLED, planPrice } from "./plans";
 import { billingEnabled, cancelSubscription, customerSubscriptions, getPayment, subscriptionPayments, updateSubscriptionValue, type AsaasPayment, type AsaasSubscription } from "./asaas";
 
 const DAY = 86400_000;
 const GRACE_DAYS = 3;
 
-function addMonth(d: Date) {
+/** Soma um ciclo pago (um mês ou um ano). */
+function addPeriod(d: Date, cycle: PlanCycle) {
   const r = new Date(d);
-  r.setUTCMonth(r.getUTCMonth() + 1);
+  if (cycle === "YEARLY") r.setUTCFullYear(r.getUTCFullYear() + 1);
+  else r.setUTCMonth(r.getUTCMonth() + 1);
   return r;
 }
 
@@ -65,11 +67,11 @@ export function hasPendingUpgrade(sub: Subscription | null | undefined) {
   return isPaying(sub) && !!sub!.upgradePaymentId && !!sub!.pendingPlan;
 }
 
-/** Diferença paga: o plano maior vale na hora e as próximas mensalidades passam a ter o novo valor. */
+/** Diferença paga: o plano maior vale na hora e as próximas cobranças passam a ter o novo valor. */
 async function applyUpgrade(sub: Subscription) {
   const plan = sub.pendingPlan;
   if (!plan || !sub.externalId) return "ignorado";
-  await updateSubscriptionValue(sub.externalId, PLANS[plan].priceCents, `Jogus Connect ${PLANS[plan].name}`);
+  await updateSubscriptionValue(sub.externalId, planPrice(plan, sub.cycle), `Jogus Connect ${PLANS[plan].name}`);
   await db.subscription.update({ where: { id: sub.id }, data: { plan, pendingPlan: null, upgradePaymentId: null, checkoutUrl: null } });
   return "upgrade pago";
 }
@@ -101,10 +103,10 @@ export async function applyPaymentEvent(event: string, payment: AsaasPayment) {
       if (sub.lastPaymentId === payment.id) return "já aplicado";
       const now = new Date();
       const due = new Date(`${payment.dueDate}T12:00:00Z`);
-      let end = new Date(addMonth(due).getTime() + GRACE_DAYS * DAY);
+      let end = new Date(addPeriod(due, sub.cycle).getTime() + GRACE_DAYS * DAY);
       // quem paga durante o teste não perde os dias que faltavam
       if (sub.status === "TRIALING" && sub.currentPeriodEnd && sub.currentPeriodEnd > now) {
-        const afterTrial = addMonth(sub.currentPeriodEnd);
+        const afterTrial = addPeriod(sub.currentPeriodEnd, sub.cycle);
         if (afterTrial > end) end = afterTrial;
       }
       if (sub.currentPeriodEnd && sub.currentPeriodEnd > end) end = sub.currentPeriodEnd;
