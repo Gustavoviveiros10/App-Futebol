@@ -4,7 +4,7 @@ import "leaflet/dist/leaflet.css";
 import { useEffect, useRef, useState } from "react";
 import { LocateFixed, MapPin, Search } from "lucide-react";
 import type * as L from "leaflet";
-import { SAO_PAULO, TILE_ATTRIBUTION, TILE_URL, fmtKm, km, searchAddress, searchOsmCourts, type Court, type Place } from "@/lib/map";
+import { SAO_PAULO, TILE_OPTIONS, TILE_URL, fmtKm, km, searchAddress, searchOsmCourts, type Court, type Place } from "@/lib/map";
 import { searchJogusCourts } from "@/lib/court-actions";
 
 type V = { location?: string | null; address?: string | null; lat?: number | null; lng?: number | null };
@@ -35,7 +35,7 @@ export function PlaceField({ v = {} }: { v?: V }) {
       const icon = Lf.divIcon({ className: "", html: '<div class="jc-dot"></div>', iconSize: [0, 0] });
       if (!map.current) {
         map.current = Lf.map(box.current, { zoomControl: true, attributionControl: true }).setView([pos.lat, pos.lng], 16);
-        Lf.tileLayer(TILE_URL, { attribution: TILE_ATTRIBUTION, maxZoom: 19 }).addTo(map.current);
+        Lf.tileLayer(TILE_URL, TILE_OPTIONS).addTo(map.current);
         marker.current = Lf.marker([pos.lat, pos.lng], { icon, draggable: true }).addTo(map.current);
         marker.current.on("dragend", () => { const p = marker.current!.getLatLng(); setPos({ lat: p.lat, lng: p.lng }); });
         map.current.on("click", (e: L.LeafletMouseEvent) => { marker.current!.setLatLng(e.latlng); setPos({ lat: e.latlng.lat, lng: e.latlng.lng }); });

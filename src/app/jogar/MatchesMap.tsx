@@ -3,15 +3,30 @@
 import "leaflet/dist/leaflet.css";
 import { useEffect, useRef } from "react";
 import type * as L from "leaflet";
-import { SAO_PAULO, TILE_ATTRIBUTION, TILE_URL } from "@/lib/map";
+import { SAO_PAULO, TILE_OPTIONS, TILE_URL, type Court } from "@/lib/map";
 
 export type MapPinData = { code: string; lat: number; lng: number; time: string; access: string; name: string };
 
-/** Mapa real (OpenStreetMap) com um pino por partida. */
-export function MatchesMap({ pins, me, selected, onSelect }: { pins: MapPinData[]; me: { lat: number; lng: number } | null; selected: string | null; onSelect: (code: string | null) => void }) {
+type Pt = { lat: number; lng: number };
+
+/** Mapa com um pino por partida e, por baixo, as quadras da região. */
+export function MatchesMap({ pins, me, selected, onSelect, courts = [], court = null, onCourt, onMove }: {
+  pins: MapPinData[];
+  me: Pt | null;
+  selected: string | null;
+  onSelect: (code: string | null) => void;
+  courts?: Court[];
+  court?: Court | null;
+  onCourt?: (c: Court) => void;
+  /** centro do mapa depois que a pessoa arrasta ou dá zoom */
+  onMove?: (center: Pt) => void;
+}) {
   const box = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const layer = useRef<L.LayerGroup | null>(null);
+  const courtLayer = useRef<L.LayerGroup | null>(null);
+  const cb = useRef({ onCourt, onMove });
+  cb.current = { onCourt, onMove };
   const Lref = useRef<typeof L | null>(null);
   const pick = useRef(onSelect);
   pick.current = onSelect;
@@ -24,10 +39,14 @@ export function MatchesMap({ pins, me, selected, onSelect }: { pins: MapPinData[
       Lref.current = Lf;
       map.current = Lf.map(box.current, { zoomControl: false }).setView(SAO_PAULO, 12);
       Lf.control.zoom({ position: "topright" }).addTo(map.current);
-      Lf.tileLayer(TILE_URL, { attribution: TILE_ATTRIBUTION, maxZoom: 19 }).addTo(map.current);
+      Lf.tileLayer(TILE_URL, TILE_OPTIONS).addTo(map.current);
+      courtLayer.current = Lf.layerGroup().addTo(map.current);
       layer.current = Lf.layerGroup().addTo(map.current);
       map.current.on("click", () => pick.current(null));
+      // só conta movimento feito pela pessoa (o enquadramento automático não)
+      map.current.on("dragend zoomend", () => { if (!fitting.current) { const c = map.current!.getCenter(); cb.current.onMove?.({ lat: c.lat, lng: c.lng }); } });
       draw(true);
+      drawCourts();
     })();
     return () => { alive = false; map.current?.remove(); map.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -36,6 +55,7 @@ export function MatchesMap({ pins, me, selected, onSelect }: { pins: MapPinData[
   // redesenha pinos quando filtros, seleção ou localização mudam
   const key = pins.map((p) => p.code).join(",") + "|" + (me ? `${me.lat},${me.lng}` : "");
   const lastKey = useRef("");
+  const fitting = useRef(false);
   useEffect(() => {
     draw(key !== lastKey.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -62,7 +82,33 @@ export function MatchesMap({ pins, me, selected, onSelect }: { pins: MapPinData[
       mk.on("click", (e) => { Lf.DomEvent.stopPropagation(e); pick.current(p.code); });
       pts.push([p.lat, p.lng]);
     });
-    if (fit && pts.length) m.fitBounds(Lf.latLngBounds(pts).pad(0.25), { maxZoom: 15 });
+    if (fit && pts.length) {
+      fitting.current = true;
+      m.fitBounds(Lf.latLngBounds(pts).pad(0.25), { maxZoom: 15 });
+      setTimeout(() => (fitting.current = false), 400);
+    }
+  }
+
+  const courtKey = courts.map((c) => `${c.lat},${c.lng}`).join("|") + "|" + (court ? `${court.lat},${court.lng}` : "");
+  useEffect(() => {
+    drawCourts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [courtKey]);
+
+  function drawCourts() {
+    const Lf = Lref.current, g = courtLayer.current;
+    if (!Lf || !g) return;
+    g.clearLayers();
+    courts.forEach((c) => {
+      const on = court && court.lat === c.lat && court.lng === c.lng;
+      const mk = Lf.marker([c.lat, c.lng], {
+        icon: Lf.divIcon({ className: "", html: `<span class="jc-court${c.source === "jogus" ? " jogus" : ""}${on ? " on" : ""}"></span>`, iconSize: [0, 0] }),
+        keyboard: true,
+        title: c.name,
+        zIndexOffset: on ? 900 : -100,
+      }).addTo(g);
+      mk.on("click", (e) => { Lf.DomEvent.stopPropagation(e); cb.current.onCourt?.(c); });
+    });
   }
 
   return <div ref={box} className="jc-map absolute inset-0" data-testid="x-leaflet" />;

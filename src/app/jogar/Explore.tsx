@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { fmtKm, km } from "@/lib/map";
-import { MapPin } from "lucide-react";
+import { SAO_PAULO, directionsUrl, fmtKm, km, type Court } from "@/lib/map";
+import { courtsNear, googleMapForThisView } from "@/lib/court-actions";
+import { LandPlot, MapPin, Navigation, Plus, Search } from "lucide-react";
 
 const MatchesMap = dynamic(() => import("./MatchesMap").then((m) => m.MatchesMap), { ssr: false, loading: () => <div className="absolute inset-0 animate-pulse bg-surface" /> });
+const GoogleMatchesMap = dynamic(() => import("./GoogleMatchesMap").then((m) => m.GoogleMatchesMap), { ssr: false, loading: () => <div className="absolute inset-0 animate-pulse bg-surface" /> });
 
 export type ExploreDay = { key: string; short: string; num: number; label: string; tag: string };
 export type ExploreMatch = {
@@ -95,6 +97,14 @@ export function Explore({ days, matches }: { days: ExploreDay[]; matches: Explor
   const [pin, setPin] = useState<string | null>(null);
   const [me, setMe] = useState<{ lat: number; lng: number } | null>(null);
   const [geoMsg, setGeoMsg] = useState("");
+  const [courtsOn, setCourtsOn] = useState(true);
+  const [courts, setCourts] = useState<Court[] | null>(null);
+  const [court, setCourt] = useState<Court | null>(null);
+  const [courtBusy, setCourtBusy] = useState(false);
+  const [moved, setMoved] = useState<{ lat: number; lng: number } | null>(null);
+  // mapa do Google enquanto houver cota grátis no mês; undefined = ainda decidindo, null = mapa gratuito
+  const [gkey, setGkey] = useState<string | null | undefined>(undefined);
+  const courtCenter = useRef<{ lat: number; lng: number } | null>(null);
   const cal = useRef<HTMLDivElement>(null);
 
   const places = useMemo(() => [...new Set(matches.map((m) => m.place))].sort((a, b) => a.localeCompare(b, "pt-BR")), [matches]);
@@ -119,6 +129,46 @@ export function Explore({ days, matches }: { days: ExploreDay[]; matches: Explor
     );
   }
   const picked = shown.find((m) => m.code === pin);
+
+  /** Quadras ao redor de um ponto (as das peladas do Jogus e as do OpenStreetMap). */
+  async function loadCourts(c: { lat: number; lng: number }) {
+    courtCenter.current = c;
+    setCourtBusy(true);
+    setMoved(null);
+    try {
+      setCourts(await courtsNear(c.lat, c.lng, 5, !!gkey));
+    } catch {
+      setCourts([]);
+    } finally {
+      setCourtBusy(false);
+    }
+  }
+  // ao abrir o mapa: busca em volta de você, ou das partidas do dia, ou do centro de São Paulo
+  useEffect(() => {
+    if (view !== "mapa" || gkey !== undefined) return;
+    googleMapForThisView().then(setGkey, () => setGkey(null));
+  }, [view, gkey]);
+  // o Google recusou: volta ao mapa gratuito, e as quadras do Google não podem ficar num mapa que não é dele
+  function googleFailed() {
+    setGkey(null);
+    setCourt(null);
+    courtCenter.current = null;
+    setCourts(null);
+  }
+  useEffect(() => {
+    if (view !== "mapa" || !courtsOn || gkey === undefined) return;
+    const first = onMap[0];
+    const c = me ?? (first ? { lat: first.lat!, lng: first.lng! } : { lat: SAO_PAULO[0], lng: SAO_PAULO[1] });
+    const prev = courtCenter.current;
+    if (courts && prev && km(prev, c) < 1) return;
+    loadCourts(c);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, courtsOn, me, gkey]);
+  function selectMatch(code: string | null) { setPin(code); setCourt(null); }
+  function onMove(c: { lat: number; lng: number }) {
+    if (courtsOn && (!courtCenter.current || km(courtCenter.current, c) > 1.5)) setMoved(c);
+  }
+  const newHere = (c: Court) => `/app/nova?${new URLSearchParams({ local: c.name, endereco: c.address, lat: String(c.lat), lng: String(c.lng) })}`;
 
   return (
     <div className="flex flex-col gap-3.5">
@@ -171,13 +221,69 @@ export function Explore({ days, matches }: { days: ExploreDay[]; matches: Explor
 
       {view === "mapa" ? (
         <div className="relative isolate h-[380px] overflow-hidden rounded-[18px] ring-1 ring-fg/[0.08]" data-testid="x-map">
-          <MatchesMap pins={onMap.map((m) => ({ code: m.code, lat: m.lat!, lng: m.lng!, time: m.time, access: m.access, name: m.name }))} me={me} selected={pin} onSelect={setPin} />
-          {shown.length > onMap.length && (
-            <span className="absolute left-2.5 top-2.5 z-[500] rounded-md bg-bg/80 px-2 py-1 text-[10.5px] font-semibold text-fg/60">
-              {shown.length - onMap.length} sem endereço no mapa
-            </span>
+          {gkey === undefined ? (
+            <div className="absolute inset-0 animate-pulse bg-surface" />
+          ) : gkey ? (
+            <GoogleMatchesMap
+              apiKey={gkey}
+              onFail={googleFailed}
+              pins={onMap.map((m) => ({ code: m.code, lat: m.lat!, lng: m.lng!, time: m.time, access: m.access, name: m.name }))}
+              me={me}
+              selected={pin}
+              onSelect={selectMatch}
+              courts={courtsOn ? (courts ?? []) : []}
+              court={court}
+              onCourt={(c) => { setCourt(c); setPin(null); }}
+              onMove={onMove}
+            />
+          ) : (
+            <MatchesMap
+              pins={onMap.map((m) => ({ code: m.code, lat: m.lat!, lng: m.lng!, time: m.time, access: m.access, name: m.name }))}
+              me={me}
+              selected={pin}
+              onSelect={selectMatch}
+              courts={courtsOn ? (courts ?? []) : []}
+              court={court}
+              onCourt={(c) => { setCourt(c); setPin(null); }}
+              onMove={onMove}
+            />
+          )}
+          <div className="absolute left-2.5 top-2.5 z-[500] flex flex-col items-start gap-1.5">
+            <button
+              type="button"
+              aria-pressed={courtsOn}
+              onClick={() => { setCourtsOn(!courtsOn); setCourt(null); setMoved(null); }}
+              className={`flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[11.5px] font-bold shadow-[0_6px_14px_-6px_rgb(0_0_0/.8)] ${courtsOn ? "bg-surface-2 text-fg ring-1 ring-accent/50" : "bg-bg/80 text-fg/60"}`}
+              data-testid="x-courts-toggle"
+            >
+              <LandPlot size={13} className={courtsOn ? "text-accent" : ""} />
+              {courtBusy ? "Buscando quadras..." : courtsOn && courts ? `${courts.length} ${courts.length === 1 ? "quadra" : "quadras"} na região` : "Mostrar quadras"}
+            </button>
+            {shown.length > onMap.length && (
+              <span className="rounded-md bg-bg/80 px-2 py-1 text-[10.5px] font-semibold text-fg/60">
+                {shown.length - onMap.length} sem endereço no mapa
+              </span>
+            )}
+          </div>
+          {moved && !courtBusy && (
+            <button type="button" onClick={() => loadCourts(moved)} className="absolute left-1/2 top-12 z-[500] flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-[12px] font-extrabold text-bg shadow-[0_8px_18px_-8px_rgb(0_0_0/.9)]" data-testid="x-courts-here">
+              <Search size={13} /> Buscar quadras aqui
+            </button>
           )}
           {picked && <div className="absolute inset-x-2.5 bottom-2.5 z-[500] shadow-[0_14px_30px_-12px_rgb(0_0_0/.8)]"><Card m={picked} tag={current.tag} dist={dist(picked)} /></div>}
+          {court && (
+            <div className="absolute inset-x-2.5 bottom-2.5 z-[500] rounded-2xl bg-surface p-3.5 ring-1 ring-fg/[0.08] shadow-[0_14px_30px_-12px_rgb(0_0_0/.8)]" data-testid="x-court-card">
+              <p className="flex items-center gap-1.5 text-[15px] font-extrabold"><LandPlot size={15} className="shrink-0 text-accent" /> <span className="truncate">{court.name}</span></p>
+              <p className="mt-0.5 truncate text-[12.5px] text-fg/55">
+                {[court.address, me ? fmtKm(km(me, court)) : null].filter(Boolean).join(" · ") || "Endereço não informado"}
+                {court.source === "jogus" && <span className="text-accent"> · já tem pelada no Jogus</span>}
+              </p>
+              <div className="mt-2.5 grid grid-cols-2 gap-2">
+                <a href={directionsUrl(court.lat, court.lng)} target="_blank" rel="noopener noreferrer" className="btn-ghost btn-sm"><Navigation size={15} /> Rota</a>
+                <Link href={newHere(court)} className="btn-primary btn-sm"><Plus size={15} /> Criar pelada aqui</Link>
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <div className="flex flex-col gap-2.5">

@@ -491,3 +491,21 @@ model Notification {
 
   @@index([userId, readAt])
 }
+
+// ─── Google Maps (sem custo) ─────────────────────────────
+
+/// Quanto usamos de cada serviço do Google no mês; perto da cota grátis o app volta ao mapa gratuito.
+model ApiUsage {
+  month String // "2026-10"
+  sku   String // "map" | "places"
+  count Int    @default(0)
+
+  @@id([month, sku])
+}
+
+/// Quadras do Google já buscadas numa região (guardadas por até 30 dias, como o Google permite).
+model CourtCache {
+  cell      String   @id // região de ~2 km
+  data      Json
+  createdAt DateTime @default(now())
+}

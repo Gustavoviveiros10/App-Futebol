@@ -1,6 +1,7 @@
-/** Mapa gratuito (OpenStreetMap) e busca de endereço (Nominatim), sem chave de API. */
-export const TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
-export const TILE_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+/** Mapa escuro gratuito (dados do OpenStreetMap, visual da CARTO) e busca de endereço (Nominatim), sem chave de API. */
+export const TILE_URL = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
+export const TILE_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>';
+export const TILE_OPTIONS = { attribution: TILE_ATTRIBUTION, subdomains: "abcd", maxZoom: 20 };
 export const SAO_PAULO: [number, number] = [-23.5505, -46.6333];
 
 export type Place = { label: string; lat: number; lng: number };
@@ -30,18 +31,18 @@ export function directionsUrl(lat: number, lng: number) {
   return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
 }
 
-export type Court = { name: string; address: string; lat: number; lng: number; source: "jogus" | "osm" };
+export type Court = { name: string; address: string; lat: number; lng: number; source: "jogus" | "osm" | "google" };
 
 const OVERPASS = "https://overpass-api.de/api/interpreter";
 
 /** Quadras de futebol do OpenStreetMap (campos, society, futsal e centros esportivos), por nome e/ou perto de um ponto. */
-export async function searchOsmCourts({ name, near, radiusKm = 30 }: { name?: string; near: { lat: number; lng: number }; radiusKm?: number }): Promise<Court[]> {
+export async function searchOsmCourts({ name, near, radiusKm = 30, limit = 8 }: { name?: string; near: { lat: number; lng: number }; radiusKm?: number; limit?: number }): Promise<Court[]> {
   const nm = name?.trim() ? `["name"~"${name.trim().replace(/[\\"^$.*+?()[\]{}|]/g, "").slice(0, 40)}",i]` : `["name"]`;
   const around = `(around:${Math.round(radiusKm * 1000)},${near.lat},${near.lng})`;
   const query = `[out:json][timeout:20];(
 nwr["leisure"="pitch"]["sport"~"soccer|futsal|society|football",i]${nm}${around};
-nwr["leisure"~"sports_centre|stadium|sports_hall"]${nm}${around};
-);out center tags 40;`;
+nwr["leisure"~"sports_centre|stadium|sports_hall"]${name?.trim() ? "" : '["sport"~"soccer|futsal|society|football|multi",i]'}${nm}${around};
+);out center tags ${Math.max(40, limit * 2)};`;
   const res = await fetch(OVERPASS, { method: "POST", body: new URLSearchParams({ data: query }) });
   if (!res.ok) throw new Error("busca indisponível");
   const data: { elements: { lat?: number; lon?: number; center?: { lat: number; lon: number }; tags?: Record<string, string> }[] } = await res.json();
@@ -56,5 +57,5 @@ nwr["leisure"~"sports_centre|stadium|sports_hall"]${nm}${around};
     })
     .filter((c): c is Court => !!c && !seen.has(c.name.toLowerCase()) && !!seen.add(c.name.toLowerCase()))
     .sort((a, b) => km(near, a) - km(near, b))
-    .slice(0, 8);
+    .slice(0, limit);
 }
