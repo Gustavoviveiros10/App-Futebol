@@ -201,8 +201,13 @@ export default async function Home() {
       </section>
 
       <footer className="border-t border-fg/[0.07] px-5 py-8">
-        <div className="mx-auto flex max-w-5xl items-center justify-between text-sm text-fg/40">
+        <div className="mx-auto flex max-w-5xl flex-col gap-4 text-sm text-fg/40 sm:flex-row sm:items-center sm:justify-between">
           <Logo className="opacity-70" />
+          <nav className="flex flex-wrap gap-x-5 gap-y-2">
+            <Link href="/instalar" className="font-semibold text-fg/70 hover:text-fg">Instalar o app no celular</Link>
+            <Link href="/jogar" className="hover:text-fg/70">Quero jogar</Link>
+            <Link href="/login" className="hover:text-fg/70">Entrar</Link>
+          </nav>
           <span>Feito para quem joga toda semana.</span>
         </div>
       </footer>
