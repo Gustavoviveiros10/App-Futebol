@@ -24,7 +24,7 @@ export default async function SignUpPage({ searchParams }: { searchParams: Promi
         {invited
           ? "Crie sua conta para entrar na pelada."
           : org
-            ? "Depois do cadastro você ativa o plano Pro (30 dias grátis, sem cartão) e monta sua pelada."
+            ? "Depois do cadastro você assina o plano Pro e monta sua pelada."
             : "Grátis para jogar. Você entra na pelada pelo link de convite do organizador."}
       </p>
       <ActionForm action={signUp}>
