@@ -140,16 +140,24 @@ option {
 
 /* mapa (Leaflet + OpenStreetMap) no tema escuro */
 .jc-map, .jc-map.leaflet-container { background: #101318; }
-.jc-map .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9) saturate(0.6); }
 .jc-map.leaflet-container .leaflet-control-attribution { background: rgb(8 9 11 / 0.7); color: rgb(241 242 244 / 0.5); font-size: 9px; }
 .jc-map .leaflet-control-attribution a { color: rgb(241 242 244 / 0.7); }
 .jc-map.leaflet-container .leaflet-control-zoom a { background: var(--color-surface-2); color: var(--color-fg); border-color: rgb(255 255 255 / 0.08); }
+/* controles do mapa do Google no tema escuro */
+.jc-map .gm-bundled-control > div > div, .jc-map .gm-control-active { background: var(--color-surface-2) !important; box-shadow: none !important; }
+.jc-map .gm-control-active img { filter: invert(1) brightness(1.6); }
+.jc-map .gm-style-cc div { background: rgb(8 9 11 / 0.7) !important; } .jc-map .gm-style-cc a, .jc-map .gm-style-cc span { color: rgb(241 242 244 / 0.6) !important; }
 .jc-pin { position: relative; transform: translate(-50%, -100%); display: inline-block; white-space: nowrap; font-family: var(--font-display); font-size: 14px; font-weight: 700;
   padding: 4px 8px; border-radius: 9px; color: var(--color-bg); background: var(--color-accent); box-shadow: 0 6px 14px -6px rgb(0 0 0 / .8); cursor: pointer; }
 .jc-pin::after { content: ""; position: absolute; left: 50%; bottom: -5px; margin-left: -5px; border: 5px solid transparent; border-bottom: 0; border-top-color: var(--color-accent); }
 .jc-pin.pedido { background: var(--color-gold); } .jc-pin.pedido::after { border-top-color: var(--color-gold); }
 .jc-pin.restrita { background: #c9ced8; } .jc-pin.restrita::after { border-top-color: #c9ced8; }
 .jc-pin.on { outline: 2px solid #fff; }
+.jc-court { display: block; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; cursor: pointer;
+  background: #16191f url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23d7ff3c' stroke-width='2'%3E%3Crect x='3' y='5' width='18' height='14' rx='1.5'/%3E%3Cpath d='M12 5v14'/%3E%3Ccircle cx='12' cy='12' r='2.5'/%3E%3C/svg%3E") center / 14px no-repeat;
+  border: 1.5px solid rgb(215 255 60 / 0.55); box-shadow: 0 4px 10px -4px rgb(0 0 0 / .8); }
+.jc-court.jogus { border-color: var(--color-accent); }
+.jc-court.on { outline: 2px solid #fff; transform: scale(1.15); }
 .jc-me { width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: #4f8cff; border: 2px solid #fff; box-shadow: 0 0 0 8px rgb(79 140 255 / 0.18); }
 .jc-dot { width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; background: var(--color-accent); border: 3px solid var(--color-bg); box-shadow: 0 0 0 6px color-mix(in oklab, var(--color-accent) 25%, transparent); }
 

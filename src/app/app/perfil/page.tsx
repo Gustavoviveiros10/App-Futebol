@@ -9,14 +9,15 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { PLANS } from "@/lib/plans";
 import { getUserPlan } from "@/lib/subscription";
+import { isPlatformAdmin } from "@/lib/platform-admin";
 import { fmtDate } from "@/lib/format";
 import { Avatar, PageHeader } from "@/components/ui";
 import { ActionForm, SubmitButton } from "@/components/forms";
 import { signOut } from "../../(auth)/actions";
 import { changePassword, saveName } from "./actions";
+import { InstallApp } from "@/components/InstallApp";
 
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
-import { InstallApp } from "@/components/InstallApp";
 
 export const metadata = { title: "Meu perfil" };
 
@@ -123,6 +124,13 @@ export default async function Profile() {
         </Link>
 
         <InstallApp dismissible={false} />
+
+        {isPlatformAdmin(user.email) && (
+          <Link href="/admin" className="card flex items-center gap-3 transition hover:bg-surface-2">
+            <p className="flex-1 font-extrabold">Painel da plataforma</p>
+            <ChevronRight className="text-fg/25" />
+          </Link>
+        )}
 
         <section className="card">
           <p className="mb-3 font-extrabold">Dados pessoais</p>

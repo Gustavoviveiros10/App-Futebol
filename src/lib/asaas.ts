@@ -1,0 +1,159 @@
+import "server-only";
+
+/**
+ * Cliente mínimo da API v3 do Asaas.
+ * Variáveis (na Vercel): ASAAS_API_KEY, ASAAS_ENV ("sandbox" | "production"), ASAAS_WEBHOOK_TOKEN.
+ */
+const env = process.env;
+
+export function billingEnabled() {
+  return !!env.ASAAS_API_KEY?.trim();
+}
+
+function baseUrl() {
+  if (env.ASAAS_API_URL) return env.ASAAS_API_URL; // testes locais
+  return env.ASAAS_ENV === "production" ? "https://api.asaas.com/v3" : "https://api-sandbox.asaas.com/v3";
+}
+
+export class AsaasError extends Error {
+  constructor(message: string, public status: number) {
+    super(message);
+  }
+}
+
+async function call<T>(method: "GET" | "POST" | "DELETE", path: string, body?: unknown): Promise<T> {
+  const key = env.ASAAS_API_KEY?.trim();
+  if (!key) throw new AsaasError("Pagamento não configurado.", 0);
+  const res = await fetch(baseUrl() + path, {
+    method,
+    headers: { "Content-Type": "application/json", "User-Agent": "JogusConnect", access_token: key },
+    body: body ? JSON.stringify(body) : undefined,
+    cache: "no-store",
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = (data as { errors?: { description?: string }[] }).errors?.map((e) => e.description).filter(Boolean).join(" ");
+    throw new AsaasError(msg || `Asaas respondeu ${res.status}.`, res.status);
+  }
+  return data as T;
+}
+
+export type AsaasPayment = {
+  id: string;
+  subscription?: string | null;
+  customer: string;
+  value: number;
+  dueDate: string; // YYYY-MM-DD
+  status: string;
+  invoiceUrl?: string;
+  externalReference?: string | null;
+};
+
+export function createCustomer(c: { name: string; email: string; cpfCnpj: string; userId: string }) {
+  return call<{ id: string }>("POST", "/customers", { name: c.name, email: c.email, cpfCnpj: c.cpfCnpj, externalReference: c.userId });
+}
+
+export function createSubscription(s: { customer: string; valueCents: number; description: string; userId: string; plan: string }) {
+  return call<{ id: string }>("POST", "/subscriptions", {
+    customer: s.customer,
+    billingType: "UNDEFINED", // a pessoa escolhe Pix, cartão ou boleto na fatura
+    cycle: "MONTHLY",
+    value: s.valueCents / 100,
+    nextDueDate: today(),
+    description: s.description,
+    externalReference: `${s.userId}:${s.plan}`,
+  });
+}
+
+/** Cobrança avulsa (ex.: diferença do upgrade). A pessoa escolhe Pix, cartão ou boleto na fatura. */
+export function createPayment(p: { customer: string; valueCents: number; description: string; externalReference: string }) {
+  return call<AsaasPayment>("POST", "/payments", {
+    customer: p.customer,
+    billingType: "UNDEFINED",
+    value: p.valueCents / 100,
+    dueDate: today(),
+    description: p.description,
+    externalReference: p.externalReference,
+  });
+}
+
+export function getPayment(id: string) {
+  return call<AsaasPayment>("GET", `/payments/${id}`);
+}
+
+export function deletePayment(id: string) {
+  return call("DELETE", `/payments/${id}`);
+}
+
+/**
+ * Teste grátis: página do Asaas onde a pessoa cadastra o cartão.
+ * Ao concluir, o Asaas cria a assinatura com a primeira cobrança em `firstChargeDate`; nada é cobrado antes.
+ */
+export async function createTrialCheckout(c: { customer: string; valueCents: number; name: string; description: string; firstChargeDate: string; externalReference: string; returnUrl: string }) {
+  const co = await call<{ id: string; link?: string }>("POST", "/checkouts", {
+    billingTypes: ["CREDIT_CARD"],
+    chargeTypes: ["RECURRENT"],
+    minutesToExpire: 120,
+    externalReference: c.externalReference,
+    customer: c.customer,
+    callback: { successUrl: `${c.returnUrl}?cartao=ok`, cancelUrl: c.returnUrl, expiredUrl: c.returnUrl },
+    items: [{ name: c.name, description: c.description, quantity: 1, value: c.valueCents / 100 }],
+    subscription: { cycle: "MONTHLY", nextDueDate: `${c.firstChargeDate} 12:00:00` },
+  });
+  const site = env.ASAAS_ENV === "production" ? "https://www.asaas.com" : "https://sandbox.asaas.com";
+  return { id: co.id, url: co.link || `${site}/checkoutSession/show?id=${co.id}` };
+}
+
+export type AsaasSubscription = { id: string; customer: string; nextDueDate: string; dateCreated?: string; status?: string; deleted?: boolean };
+
+/** Assinaturas ativas de um cliente (a do teste aparece aqui quando o cartão é cadastrado). */
+export async function customerSubscriptions(customer: string) {
+  return (await call<{ data: AsaasSubscription[] }>("GET", `/subscriptions?customer=${encodeURIComponent(customer)}&status=ACTIVE`)).data.filter((s) => !s.deleted);
+}
+
+export function updateSubscriptionValue(id: string, valueCents: number, description: string) {
+  return call("POST", `/subscriptions/${id}`, { value: valueCents / 100, description, updatePendingPayments: true });
+}
+
+export function cancelSubscription(id: string) {
+  return call("DELETE", `/subscriptions/${id}`);
+}
+
+export async function subscriptionPayments(subscriptionId: string) {
+  return (await call<{ data: AsaasPayment[] }>("GET", `/subscriptions/${subscriptionId}/payments`)).data;
+}
+
+export async function firstOpenPayment(subscriptionId: string) {
+  const list = await subscriptionPayments(subscriptionId);
+  return list.find((p) => p.status === "PENDING" || p.status === "OVERDUE") ?? list[0] ?? null;
+}
+
+/** Data (YYYY-MM-DD) no fuso de São Paulo, hoje ou daqui a `days` dias. */
+export function today(days = 0) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date(Date.now() + days * 86400_000));
+}
+
+/** Só dígitos; valida CPF (11) ou CNPJ (14) pelos dígitos verificadores. */
+export function cleanCpfCnpj(raw: string): string | null {
+  const d = raw.replace(/\D/g, "");
+  if (/^(\d)\1+$/.test(d)) return null;
+  if (d.length === 11) {
+    const dv = (n: number) => {
+      let s = 0;
+      for (let i = 0; i < n; i++) s += Number(d[i]) * (n + 1 - i);
+      const r = (s * 10) % 11;
+      return r === 10 ? 0 : r;
+    };
+    return dv(9) === Number(d[9]) && dv(10) === Number(d[10]) ? d : null;
+  }
+  if (d.length === 14) {
+    const dv = (n: number) => {
+      const w = n === 12 ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2] : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+      const s = w.reduce((a, x, i) => a + x * Number(d[i]), 0);
+      const r = s % 11;
+      return r < 2 ? 0 : 11 - r;
+    };
+    return dv(12) === Number(d[12]) && dv(13) === Number(d[13]) ? d : null;
+  }
+  return null;
+}

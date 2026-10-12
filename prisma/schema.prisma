@@ -130,10 +130,19 @@ model Subscription {
   status           SubscriptionStatus @default(ACTIVE)
   currentPeriodEnd DateTime?
   provider         String? // ex.: "stripe", "mercadopago", "asaas"
-  externalId       String?
+  externalId       String? // id da assinatura no provedor (null = sem cobrança recorrente)
+  customerId       String? // id do cliente no provedor
+  pendingPlan      Plan? // plano escolhido no checkout, vale quando o pagamento confirmar
+  checkoutUrl      String? // link da fatura em aberto
+  lastPaymentId    String? // último pagamento aplicado (webhook idempotente)
+  upgradePaymentId String? // cobrança avulsa da diferença ao passar para um plano maior
+  checkoutId       String? // checkout do teste grátis (cadastro do cartão) ainda não concluído
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
   user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([externalId])
+  @@index([upgradePaymentId])
 }
 
 enum Role {
@@ -481,4 +490,22 @@ model Notification {
   group     Group?    @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
   @@index([userId, readAt])
+}
+
+// ─── Google Maps (sem custo) ─────────────────────────────
+
+/// Quanto usamos de cada serviço do Google no mês; perto da cota grátis o app volta ao mapa gratuito.
+model ApiUsage {
+  month String // "2026-10"
+  sku   String // "map" | "places"
+  count Int    @default(0)
+
+  @@id([month, sku])
+}
+
+/// Quadras do Google já buscadas numa região (guardadas por até 30 dias, como o Google permite).
+model CourtCache {
+  cell      String   @id // região de ~2 km
+  data      Json
+  createdAt DateTime @default(now())
 }
