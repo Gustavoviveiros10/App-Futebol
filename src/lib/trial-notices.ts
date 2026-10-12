@@ -5,7 +5,7 @@ import { billingEnabled } from "./asaas";
 import { syncFromAsaas } from "./billing";
 import { fmtDate, money } from "./format";
 import { appUrl, sendMail } from "./mail";
-import { PLANS } from "./plans";
+import { PLANS, cycleSuffix, planPrice } from "./plans";
 import { inDays, trialEnd, trialNotice } from "./trial";
 
 const DAY = 86400_000;
@@ -41,7 +41,7 @@ export async function sendTrialNotices(now = new Date()) {
       ({ delivered } = await sendMail(
         sub.user.email,
         `Seu teste grátis do ${plan.name} acaba ${inDays(days)}`,
-        `Olá, ${first}!\n\nSeu teste grátis do ${APP_NAME} ${plan.name} termina em ${fmtDate(end)}. A partir daí, a assinatura de ${money(plan.priceCents)}/mês será cobrada no cartão que você cadastrou, e você continua organizando sua pelada sem interrupção.\n\nSe não quiser continuar, cancele antes dessa data e nada será cobrado:\n${link}\n\nEquipe ${APP_NAME}`,
+        `Olá, ${first}!\n\nSeu teste grátis do ${APP_NAME} ${plan.name} termina em ${fmtDate(end)}. A partir daí, a assinatura de ${money(planPrice(sub.plan, sub.cycle))}${cycleSuffix(sub.cycle)} será cobrada no cartão que você cadastrou, e você continua organizando sua pelada sem interrupção.\n\nSe não quiser continuar, cancele antes dessa data e nada será cobrado:\n${link}\n\nEquipe ${APP_NAME}`,
       ));
       if (delivered) await db.subscription.update({ where: { id: sub.id }, data: { trialReminderAt: now } });
       if (delivered) result.lembretes++;
@@ -49,7 +49,7 @@ export async function sendTrialNotices(now = new Date()) {
       ({ delivered } = await sendMail(
         sub.user.email,
         `Seu teste grátis do ${plan.name} acabou`,
-        `Olá, ${first}!\n\nSeu teste grátis do ${APP_NAME} ${plan.name} terminou e sua conta voltou para o plano gratuito. Seus dados continuam salvos.\n\nPara continuar organizando sua pelada com tudo do ${plan.name}, assine por ${money(plan.priceCents)}/mês:\n${link}\n\nEquipe ${APP_NAME}`,
+        `Olá, ${first}!\n\nSeu teste grátis do ${APP_NAME} ${plan.name} terminou e sua conta voltou para o plano gratuito. Seus dados continuam salvos.\n\nPara continuar organizando sua pelada com tudo do ${plan.name}, assine por ${money(plan.priceCents)}/mês (ou ${money(plan.yearlyCents)}/ano, com 2 meses grátis):\n${link}\n\nEquipe ${APP_NAME}`,
       ));
       if (delivered) await db.subscription.update({ where: { id: sub.id }, data: { trialEndedAt: now } });
       if (delivered) result.encerrados++;

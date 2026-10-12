@@ -1,4 +1,5 @@
 import "server-only";
+import type { PlanCycle } from "@prisma/client";
 
 /**
  * Cliente mínimo da API v3 do Asaas.
@@ -53,11 +54,11 @@ export function createCustomer(c: { name: string; email: string; cpfCnpj: string
   return call<{ id: string }>("POST", "/customers", { name: c.name, email: c.email, cpfCnpj: c.cpfCnpj, externalReference: c.userId });
 }
 
-export function createSubscription(s: { customer: string; valueCents: number; description: string; userId: string; plan: string }) {
+export function createSubscription(s: { customer: string; valueCents: number; description: string; userId: string; plan: string; cycle: PlanCycle }) {
   return call<{ id: string }>("POST", "/subscriptions", {
     customer: s.customer,
     billingType: "UNDEFINED", // a pessoa escolhe Pix, cartão ou boleto na fatura
-    cycle: "MONTHLY",
+    cycle: s.cycle,
     value: s.valueCents / 100,
     nextDueDate: today(),
     description: s.description,
@@ -89,7 +90,7 @@ export function deletePayment(id: string) {
  * Teste grátis: página do Asaas onde a pessoa cadastra o cartão.
  * Ao concluir, o Asaas cria a assinatura com a primeira cobrança em `firstChargeDate`; nada é cobrado antes.
  */
-export async function createTrialCheckout(c: { customer: string; valueCents: number; name: string; description: string; firstChargeDate: string; externalReference: string; returnUrl: string }) {
+export async function createTrialCheckout(c: { customer: string; valueCents: number; name: string; description: string; firstChargeDate: string; cycle: PlanCycle; externalReference: string; returnUrl: string }) {
   const co = await call<{ id: string; link?: string }>("POST", "/checkouts", {
     billingTypes: ["CREDIT_CARD"],
     chargeTypes: ["RECURRENT"],
@@ -98,7 +99,7 @@ export async function createTrialCheckout(c: { customer: string; valueCents: num
     customer: c.customer,
     callback: { successUrl: `${c.returnUrl}?cartao=ok`, cancelUrl: c.returnUrl, expiredUrl: c.returnUrl },
     items: [{ name: c.name, description: c.description, quantity: 1, value: c.valueCents / 100 }],
-    subscription: { cycle: "MONTHLY", nextDueDate: `${c.firstChargeDate} 12:00:00` },
+    subscription: { cycle: c.cycle, nextDueDate: `${c.firstChargeDate} 12:00:00` },
   });
   const site = env.ASAAS_ENV === "production" ? "https://www.asaas.com" : "https://sandbox.asaas.com";
   return { id: co.id, url: co.link || `${site}/checkoutSession/show?id=${co.id}` };
@@ -111,8 +112,9 @@ export async function customerSubscriptions(customer: string) {
   return (await call<{ data: AsaasSubscription[] }>("GET", `/subscriptions?customer=${encodeURIComponent(customer)}&status=ACTIVE`)).data.filter((s) => !s.deleted);
 }
 
-export function updateSubscriptionValue(id: string, valueCents: number, description: string) {
-  return call("POST", `/subscriptions/${id}`, { value: valueCents / 100, description, updatePendingPayments: true });
+/** Muda valor (e, se vier, o ciclo) da assinatura; a fatura em aberto passa a ter o novo valor. */
+export function updateSubscriptionValue(id: string, valueCents: number, description: string, cycle?: PlanCycle) {
+  return call("POST", `/subscriptions/${id}`, { value: valueCents / 100, description, ...(cycle ? { cycle } : {}), updatePendingPayments: true });
 }
 
 export function cancelSubscription(id: string) {

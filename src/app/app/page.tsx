@@ -3,7 +3,7 @@ import { ArrowRight, ChevronRight, Clock, Plus, Search } from "lucide-react";
 import { Avatar } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { PLANS, TRIAL_DAYS } from "@/lib/plans";
+import { PLANS, TRIAL_DAYS, cycleSuffix, planPrice } from "@/lib/plans";
 import { canStartTrial, trialAvailable } from "@/lib/billing";
 import { inDays, trialState } from "@/lib/trial";
 import { getUserPlan } from "@/lib/subscription";
@@ -85,7 +85,7 @@ export default async function MyGroups() {
             <b className="block">Seu teste grátis do {PLANS[sub!.plan].name} acaba {inDays(trial.days)}</b>
             <span className="text-fg/60">
               {trial.card
-                ? `Em ${fmtDate(trial.end)} cobramos ${money(PLANS[sub!.plan].priceCents)}/mês no cartão cadastrado. Para não continuar, cancele antes.`
+                ? `Em ${fmtDate(trial.end)} cobramos ${money(planPrice(sub!.plan, sub!.cycle))}${cycleSuffix(sub!.cycle)} no cartão cadastrado. Para não continuar, cancele antes.`
                 : `Assine até ${fmtDate(trial.end)} para não perder os recursos do ${PLANS[sub!.plan].name}.`}
             </span>
           </span>
@@ -97,7 +97,7 @@ export default async function MyGroups() {
           <p className="flex items-center gap-2 font-bold"><Clock size={18} className="text-gold" /> Seu teste grátis do {PLANS[sub!.plan].name} acabou</p>
           <p className="text-sm text-fg/60">Sua conta voltou para o plano gratuito e seus dados continuam salvos. Assine para continuar organizando sua pelada.</p>
           <Link href={`/app/planos?plano=${sub!.plan}`} className="btn-primary w-full">
-            Assinar o {PLANS[sub!.plan].name} · {money(PLANS[sub!.plan].priceCents)}/mês <ArrowRight size={18} />
+            Assinar o {PLANS[sub!.plan].name} · {money(planPrice(sub!.plan, sub!.cycle))}{cycleSuffix(sub!.cycle)} <ArrowRight size={18} />
           </Link>
         </div>
       )}

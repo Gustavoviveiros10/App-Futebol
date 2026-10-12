@@ -87,6 +87,7 @@ export default async function Home() {
                 {PLANS[k].priceCents ? money(PLANS[k].priceCents) : "Grátis"}
                 {PLANS[k].priceCents > 0 && <span className="ml-1 font-sans text-sm font-medium text-fg/40">/mês</span>}
               </p>
+              {PLANS[k].yearlyCents > 0 && <p className="mt-1 text-sm text-fg/55">ou {money(PLANS[k].yearlyCents)}/ano, com 2 meses grátis</p>}
               <ul className="mt-5 flex-1 space-y-2 text-sm text-fg/70">
                 {PLANS[k].features.map((f) => (
                   <li key={f} className="flex gap-2">
