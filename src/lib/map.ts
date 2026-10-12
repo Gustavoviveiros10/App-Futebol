@@ -31,7 +31,7 @@ export function directionsUrl(lat: number, lng: number) {
   return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
 }
 
-export type Court = { name: string; address: string; lat: number; lng: number; source: "jogus" | "osm" };
+export type Court = { name: string; address: string; lat: number; lng: number; source: "jogus" | "osm" | "google" };
 
 const OVERPASS = "https://overpass-api.de/api/interpreter";
 

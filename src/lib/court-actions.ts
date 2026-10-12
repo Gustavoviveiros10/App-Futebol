@@ -3,6 +3,14 @@
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { km, searchOsmCourts, type Court } from "@/lib/map";
+import { googleCourts, googleMapKey, reserve } from "@/lib/google";
+
+/** Chave do mapa do Google para esta abertura de mapa, ou null para usar o mapa gratuito (sem chave ou cota grátis do mês no fim). */
+export async function googleMapForThisView(): Promise<string | null> {
+  const key = googleMapKey();
+  if (!key) return null;
+  return (await reserve("map").catch(() => false)) ? key : null;
+}
 
 /** Quadras que outras peladas do Jogus já cadastraram com ponto no mapa. */
 export async function searchJogusCourts(q: string): Promise<Court[]> {
@@ -26,20 +34,23 @@ export async function searchJogusCourts(q: string): Promise<Court[]> {
   return out.slice(0, 5);
 }
 
-/** Quadras perto de um ponto: as que peladas públicas do Jogus já usam + as do OpenStreetMap. */
-export async function courtsNear(lat: number, lng: number, radiusKm = 5): Promise<Court[]> {
+/**
+ * Quadras perto de um ponto: as que peladas públicas do Jogus já usam + as do Google (só quando o mapa
+ * na tela é do Google, regra de uso deles) ou, sem o Google, as do OpenStreetMap.
+ */
+export async function courtsNear(lat: number, lng: number, radiusKm = 5, onGoogleMap = false): Promise<Court[]> {
   if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return [];
   const r = Math.min(Math.max(radiusKm, 1), 15);
   const dLat = r / 111, dLng = r / (111 * Math.cos((lat * Math.PI) / 180));
   const box = { lat: { gte: lat - dLat, lte: lat + dLat }, lng: { gte: lng - dLng, lte: lng + dLng } };
-  const [mine, osm] = await Promise.all([
+  const [mine, others] = await Promise.all([
     db.match.findMany({
       where: { ...box, access: { not: "RESTRICTED" } },
       select: { location: true, address: true, lat: true, lng: true },
       orderBy: { date: "desc" },
       take: 60,
     }),
-    searchOsmCourts({ near: { lat, lng }, radiusKm: r, limit: 40 }).catch(() => [] as Court[]),
+    (async () => (onGoogleMap ? await googleCourts(lat, lng, r).catch(() => null) : null) ?? (await searchOsmCourts({ near: { lat, lng }, radiusKm: r, limit: 40 }).catch(() => [] as Court[])))(),
   ]);
   const out: Court[] = [];
   const near = (a: Court) => out.some((c) => km(a, c) < 0.08 || c.name.toLowerCase() === a.name.toLowerCase());
@@ -47,6 +58,6 @@ export async function courtsNear(lat: number, lng: number, radiusKm = 5): Promis
     const c: Court = { name: m.location || m.address || "", address: m.address ?? "", lat: m.lat!, lng: m.lng!, source: "jogus" };
     if (c.name && !near(c)) out.push(c);
   }
-  for (const c of osm) if (!near(c)) out.push(c);
+  for (const c of others) if (!near(c)) out.push(c);
   return out.sort((a, b) => km({ lat, lng }, a) - km({ lat, lng }, b)).slice(0, 50);
 }

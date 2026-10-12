@@ -4,10 +4,11 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { SAO_PAULO, directionsUrl, fmtKm, km, type Court } from "@/lib/map";
-import { courtsNear } from "@/lib/court-actions";
+import { courtsNear, googleMapForThisView } from "@/lib/court-actions";
 import { LandPlot, MapPin, Navigation, Plus, Search } from "lucide-react";
 
 const MatchesMap = dynamic(() => import("./MatchesMap").then((m) => m.MatchesMap), { ssr: false, loading: () => <div className="absolute inset-0 animate-pulse bg-surface" /> });
+const GoogleMatchesMap = dynamic(() => import("./GoogleMatchesMap").then((m) => m.GoogleMatchesMap), { ssr: false, loading: () => <div className="absolute inset-0 animate-pulse bg-surface" /> });
 
 export type ExploreDay = { key: string; short: string; num: number; label: string; tag: string };
 export type ExploreMatch = {
@@ -101,6 +102,8 @@ export function Explore({ days, matches }: { days: ExploreDay[]; matches: Explor
   const [court, setCourt] = useState<Court | null>(null);
   const [courtBusy, setCourtBusy] = useState(false);
   const [moved, setMoved] = useState<{ lat: number; lng: number } | null>(null);
+  // mapa do Google enquanto houver cota grátis no mês; undefined = ainda decidindo, null = mapa gratuito
+  const [gkey, setGkey] = useState<string | null | undefined>(undefined);
   const courtCenter = useRef<{ lat: number; lng: number } | null>(null);
   const cal = useRef<HTMLDivElement>(null);
 
@@ -133,7 +136,7 @@ export function Explore({ days, matches }: { days: ExploreDay[]; matches: Explor
     setCourtBusy(true);
     setMoved(null);
     try {
-      setCourts(await courtsNear(c.lat, c.lng, 5));
+      setCourts(await courtsNear(c.lat, c.lng, 5, !!gkey));
     } catch {
       setCourts([]);
     } finally {
@@ -142,14 +145,25 @@ export function Explore({ days, matches }: { days: ExploreDay[]; matches: Explor
   }
   // ao abrir o mapa: busca em volta de você, ou das partidas do dia, ou do centro de São Paulo
   useEffect(() => {
-    if (view !== "mapa" || !courtsOn) return;
+    if (view !== "mapa" || gkey !== undefined) return;
+    googleMapForThisView().then(setGkey, () => setGkey(null));
+  }, [view, gkey]);
+  // o Google recusou: volta ao mapa gratuito, e as quadras do Google não podem ficar num mapa que não é dele
+  function googleFailed() {
+    setGkey(null);
+    setCourt(null);
+    courtCenter.current = null;
+    setCourts(null);
+  }
+  useEffect(() => {
+    if (view !== "mapa" || !courtsOn || gkey === undefined) return;
     const first = onMap[0];
     const c = me ?? (first ? { lat: first.lat!, lng: first.lng! } : { lat: SAO_PAULO[0], lng: SAO_PAULO[1] });
     const prev = courtCenter.current;
     if (courts && prev && km(prev, c) < 1) return;
     loadCourts(c);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, courtsOn, me]);
+  }, [view, courtsOn, me, gkey]);
   function selectMatch(code: string | null) { setPin(code); setCourt(null); }
   function onMove(c: { lat: number; lng: number }) {
     if (courtsOn && (!courtCenter.current || km(courtCenter.current, c) > 1.5)) setMoved(c);
@@ -207,16 +221,33 @@ export function Explore({ days, matches }: { days: ExploreDay[]; matches: Explor
 
       {view === "mapa" ? (
         <div className="relative isolate h-[380px] overflow-hidden rounded-[18px] ring-1 ring-fg/[0.08]" data-testid="x-map">
-          <MatchesMap
-            pins={onMap.map((m) => ({ code: m.code, lat: m.lat!, lng: m.lng!, time: m.time, access: m.access, name: m.name }))}
-            me={me}
-            selected={pin}
-            onSelect={selectMatch}
-            courts={courtsOn ? (courts ?? []) : []}
-            court={court}
-            onCourt={(c) => { setCourt(c); setPin(null); }}
-            onMove={onMove}
-          />
+          {gkey === undefined ? (
+            <div className="absolute inset-0 animate-pulse bg-surface" />
+          ) : gkey ? (
+            <GoogleMatchesMap
+              apiKey={gkey}
+              onFail={googleFailed}
+              pins={onMap.map((m) => ({ code: m.code, lat: m.lat!, lng: m.lng!, time: m.time, access: m.access, name: m.name }))}
+              me={me}
+              selected={pin}
+              onSelect={selectMatch}
+              courts={courtsOn ? (courts ?? []) : []}
+              court={court}
+              onCourt={(c) => { setCourt(c); setPin(null); }}
+              onMove={onMove}
+            />
+          ) : (
+            <MatchesMap
+              pins={onMap.map((m) => ({ code: m.code, lat: m.lat!, lng: m.lng!, time: m.time, access: m.access, name: m.name }))}
+              me={me}
+              selected={pin}
+              onSelect={selectMatch}
+              courts={courtsOn ? (courts ?? []) : []}
+              court={court}
+              onCourt={(c) => { setCourt(c); setPin(null); }}
+              onMove={onMove}
+            />
+          )}
           <div className="absolute left-2.5 top-2.5 z-[500] flex flex-col items-start gap-1.5">
             <button
               type="button"
