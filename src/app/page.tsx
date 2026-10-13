@@ -166,7 +166,7 @@ export default async function Home() {
           <div className="card p-5 ring-1 ring-accent/40">
             <Users size={22} className="text-accent" />
             <p className="mt-4 font-bold">Não sai do bolso do organizador</p>
-            <p className="mt-1 text-sm leading-relaxed text-fg/55">A assinatura entra na mensalidade e é dividida por todo mundo. Numa pelada de 20, fica em torno de <b className="text-fg">{money(Math.ceil(PLANS.PRO.priceCents / 20))} por jogador no mês</b>.</p>
+            <p className="mt-1 text-sm leading-relaxed text-fg/55">A assinatura entra na mensalidade e é dividida por todo mundo. Numa pelada de 15, fica em torno de <b className="text-fg">{money(Math.ceil(PLANS.PRO.priceCents / 15))} por jogador no mês</b>.</p>
           </div>
         </div>
 

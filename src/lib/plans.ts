@@ -15,16 +15,16 @@ export const PLANS: Record<Plan, { name: string; priceCents: number; yearlyCents
   },
   PRO: {
     name: "Pro",
-    priceCents: 1990,
-    yearlyCents: 19900, // 10 meses: 2 de graça
+    priceCents: 2499,
+    yearlyCents: 24900, // ~10 meses: 2 de graça
     maxGroups: 1,
     tagline: "Para quem organiza",
     features: ["Sua própria pelada", "Jogadores ilimitados", "Sorteio equilibrado", "Estatísticas, craque e rankings", "Partidas abertas no Quero jogar"],
   },
   PREMIUM: {
     name: "Premium",
-    priceCents: 2990,
-    yearlyCents: 29900,
+    priceCents: 3999,
+    yearlyCents: 39900,
     maxGroups: 3,
     tagline: "Para quem organiza várias",
     features: ["Tudo do Pro", "Até 3 peladas", "Financeiro completo: mensalidades, avulsos, despesas e caixa", "Divisão do churrasco", "Personalização da pelada"],
@@ -36,7 +36,7 @@ export function planPrice(plan: Plan, cycle: PlanCycle = "MONTHLY") {
   return cycle === "YEARLY" ? PLANS[plan].yearlyCents : PLANS[plan].priceCents;
 }
 
-/** "R$ 19,90/mês" ou "R$ 199,00/ano". */
+/** "R$ 24,99/mês" ou "R$ 249,00/ano". */
 export const cycleSuffix = (cycle: PlanCycle = "MONTHLY") => (cycle === "YEARLY" ? "/ano" : "/mês");
 
 /** Quanto o anual sai por mês (para comparar com o mensal). */
