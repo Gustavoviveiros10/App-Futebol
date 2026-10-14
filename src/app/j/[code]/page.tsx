@@ -10,6 +10,7 @@ import { Avatar } from "@/components/ui";
 import { ActionForm, SubmitButton } from "@/components/forms";
 import { InstallApp } from "@/components/InstallApp";
 import { guestForget, guestRespond } from "./actions";
+import { LegalNotice } from "@/components/LegalPage";
 
 export const metadata = { title: "Confirmar presença" };
 
@@ -86,6 +87,7 @@ export default async function GuestMatch({ params, searchParams }: { params: Pro
               <input className="input" name="name" placeholder="Seu nome" aria-label="Seu nome" required />
               <input className="input" name="phone" type="tel" inputMode="tel" placeholder="WhatsApp" aria-label="WhatsApp" required />
               <SubmitButton name="status" value="CONFIRMED" className="btn-primary" pendingText="...">{match.access === "OPEN" ? "Quero jogar" : "Pedir vaga"}</SubmitButton>
+              <LegalNotice />
             </ActionForm>
             <Link href="/jogar" className="mt-3 block text-center text-xs text-fg/45">← Ver outras partidas</Link>
           </div>
@@ -121,6 +123,7 @@ export default async function GuestMatch({ params, searchParams }: { params: Pro
                 <input className="input" name="name" placeholder="Seu nome" aria-label="Seu nome" required />
                 <input className="input" name="phone" type="tel" inputMode="tel" placeholder="WhatsApp (opcional)" aria-label="WhatsApp" />
                 <SubmitButton name="status" value="CONFIRMED" className="btn-primary" pendingText="...">{match.access === "APPROVAL" ? "Pedir vaga" : "Vou"}</SubmitButton>
+                <LegalNotice />
               </ActionForm>
             </details>
             <p className="mt-4 text-center text-xs text-fg/45">Sem cadastro e sem senha. Seu nome fica salvo neste celular para a próxima partida.</p>

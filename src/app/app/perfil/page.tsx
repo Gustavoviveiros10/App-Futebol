@@ -14,7 +14,7 @@ import { fmtDate } from "@/lib/format";
 import { Avatar, PageHeader } from "@/components/ui";
 import { ActionForm, SubmitButton } from "@/components/forms";
 import { signOut } from "../../(auth)/actions";
-import { changePassword, saveName } from "./actions";
+import { changePassword, deleteAccount, saveName } from "./actions";
 import { InstallApp } from "@/components/InstallApp";
 
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
@@ -23,7 +23,7 @@ export const metadata = { title: "Meu perfil" };
 
 export default async function Profile() {
   const user = await requireUser();
-  const [{ sub, plan }, stats] = await Promise.all([
+  const [{ sub, plan, owned }, stats] = await Promise.all([
     getUserPlan(user.id),
     db.player.findMany({ where: { userId: user.id, active: true }, select: { id: true, groupId: true, photo: true, position: true, group: { select: { name: true } } }, orderBy: { joinedAt: "asc" } }),
   ]);
@@ -158,6 +158,25 @@ export default async function Profile() {
         <form action={signOut}>
           <SubmitButton className="btn-ghost w-full"><LogOut size={18} /> Sair da conta</SubmitButton>
         </form>
+
+        <details className="card">
+          <summary className="cursor-pointer font-extrabold text-red-400">Excluir minha conta</summary>
+          <div className="mt-3 flex flex-col gap-2 text-sm text-fg/60">
+            <p>Apagamos sua conta, seu login e seus pedidos de vaga, e paramos qualquer cobrança. Não dá para desfazer.</p>
+            {owned > 0 && (
+              <p className="font-semibold text-red-400">
+                {owned === 1 ? "A pelada que você organiza também será apagada" : `As ${owned} peladas que você organiza também serão apagadas`}, com partidas, jogadores e financeiro.
+              </p>
+            )}
+            <p>Nas peladas de outros organizadores, seu nome continua na lista deles, sem foto e sem ligação com esta conta.</p>
+            <ActionForm action={deleteAccount} className="mt-1 flex flex-col gap-2">
+              <input className="input" name="password" type="password" autoComplete="current-password" placeholder="Sua senha" aria-label="Sua senha" required />
+              <input className="input" name="confirm" autoComplete="off" placeholder="Digite EXCLUIR" aria-label="Digite EXCLUIR para confirmar" required />
+              <SubmitButton className="btn-ghost w-full text-red-400" pendingText="Excluindo...">Excluir minha conta para sempre</SubmitButton>
+            </ActionForm>
+            <p className="text-xs text-fg/45">Saiba mais na <Link href="/privacidade" className="underline">Política de Privacidade</Link>.</p>
+          </div>
+        </details>
       </div>
     </div>
   );
