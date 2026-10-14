@@ -207,6 +207,8 @@ export default async function Home() {
             <Link href="/instalar" className="font-semibold text-fg/70 hover:text-fg">Instalar o app no celular</Link>
             <Link href="/jogar" className="hover:text-fg/70">Quero jogar</Link>
             <Link href="/login" className="hover:text-fg/70">Entrar</Link>
+            <Link href="/termos" className="hover:text-fg/70">Termos</Link>
+            <Link href="/privacidade" className="hover:text-fg/70">Privacidade</Link>
           </nav>
           <span>Feito para quem joga toda semana.</span>
         </div>

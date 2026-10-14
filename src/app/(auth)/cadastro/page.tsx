@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ActionForm, SubmitButton } from "@/components/forms";
 import { signUp } from "../actions";
 import { redirectIfLoggedIn } from "@/lib/auth";
+import { LegalNotice } from "@/components/LegalPage";
 
 export const metadata = { title: "Criar conta" };
 
@@ -47,6 +48,7 @@ export default async function SignUpPage({ searchParams }: { searchParams: Promi
           <p className="mt-1 text-xs text-fg/45">Mínimo de 8 caracteres.</p>
         </div>
         <SubmitButton pendingText="Criando...">{org ? "Continuar para o plano Pro" : "Criar conta"}</SubmitButton>
+        <LegalNotice action="criar a conta" />
       </ActionForm>
       <p className="mt-5 text-center text-sm text-fg/55">
         Já tem conta?{" "}
