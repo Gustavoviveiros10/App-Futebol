@@ -54,6 +54,23 @@ export function createCustomer(c: { name: string; email: string; cpfCnpj: string
   return call<{ id: string }>("POST", "/customers", { name: c.name, email: c.email, cpfCnpj: c.cpfCnpj, externalReference: c.userId });
 }
 
+export type CustomerAddress = { postalCode: string; addressNumber: string; phone: string; address: string; province: string; city: string };
+
+/** Endereço e celular do cliente: o checkout do cartão (teste grátis) exige isso no cadastro. */
+export function updateCustomerAddress(customer: string, a: CustomerAddress) {
+  return call("POST", `/customers/${customer}`, { ...a, mobilePhone: a.phone });
+}
+
+/** Busca rua, bairro e cidade pelo CEP no ViaCEP (grátis, sem chave). null se o CEP não existe. */
+export async function lookupCep(cep: string): Promise<{ address: string; province: string; city: string } | null> {
+  const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`, { cache: "no-store" }).catch(() => null);
+  if (!res?.ok) throw new AsaasError("Não deu para consultar o CEP agora. Tente de novo em instantes.", 0);
+  const d = (await res.json().catch(() => ({}))) as { erro?: unknown; logradouro?: string; bairro?: string; localidade?: string; uf?: string };
+  if (d.erro || !d.localidade) return null;
+  // cidades de CEP único não têm rua nem bairro
+  return { address: d.logradouro || d.localidade, province: d.bairro || "Centro", city: d.localidade };
+}
+
 export function createSubscription(s: { customer: string; valueCents: number; description: string; userId: string; plan: string; cycle: PlanCycle }) {
   return call<{ id: string }>("POST", "/subscriptions", {
     customer: s.customer,

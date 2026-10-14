@@ -180,6 +180,7 @@ export default async function Plans({ searchParams }: { searchParams: Promise<{ 
                       label={`Testar ${TRIAL_DAYS} dias grátis`}
                       submitLabel="Cadastrar cartão"
                       needsDoc={!sub?.customerId}
+                      needsAddress
                       primary={k === focus}
                     />
                   )}
