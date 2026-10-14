@@ -7,10 +7,11 @@ import { requireUser } from "@/lib/auth";
 import type { PlanCycle } from "@prisma/client";
 import { PLANS, TRIAL_DAYS, cycleSuffix, planPrice, upgradeCostCents } from "@/lib/plans";
 import type { ActionState } from "@/lib/actions";
-import { AsaasError, billingEnabled, cancelSubscription, cleanCpfCnpj, createCustomer, createPayment, createSubscription, createTrialCheckout, deletePayment, firstOpenPayment, today, updateSubscriptionValue } from "@/lib/asaas";
+import { AsaasError, billingEnabled, cancelSubscription, cleanCpfCnpj, createCustomer, lookupCep, updateCustomerAddress, createPayment, createSubscription, createTrialCheckout, deletePayment, firstOpenPayment, today, updateSubscriptionValue } from "@/lib/asaas";
 import { canStartTrial, hasPendingCheckout, hasPendingUpgrade, isCardTrial, isPaying, trialAvailable } from "@/lib/billing";
 import { money } from "@/lib/format";
 import { appUrl } from "@/lib/mail";
+import { cleanCep, cleanPhone } from "@/lib/br";
 
 type PaidPlan = "PRO" | "PREMIUM";
 const paid = (p: unknown): p is PaidPlan => p === "PRO" || p === "PREMIUM";
@@ -51,10 +52,25 @@ export async function startTrial(plan: PaidPlan, cycle: PlanCycle, _: ActionStat
   if (plan === "PRO" && (await db.group.count({ where: { ownerId: user.id } })) > PLANS.PRO.maxGroups)
     return { error: "Você organiza mais peladas do que o Pro permite. Escolha o Premium." };
 
+  // o checkout do cartão exige celular e endereço no cadastro do cliente
+  const cep = cleanCep(String(form.get("cep") ?? ""));
+  if (!cep) return { error: "Confira o CEP." };
+  const addressNumber = String(form.get("numero") ?? "").trim().slice(0, 20) || "S/N";
+  const phone = cleanPhone(String(form.get("celular") ?? ""));
+  if (!phone) return { error: "Confira o celular, com DDD." };
+  let place: Awaited<ReturnType<typeof lookupCep>>;
+  try {
+    place = await lookupCep(cep);
+  } catch {
+    return { error: "Não deu para consultar o CEP agora. Tente de novo em instantes." };
+  }
+  if (!place) return { error: "Não encontramos esse CEP. Confira os números." };
+
   let url: string;
   try {
     const customer = await ensureCustomer(user, sub, form);
     if (typeof customer !== "string") return customer;
+    await updateCustomerAddress(customer, { postalCode: cep, addressNumber, phone, ...place });
     const co = await createTrialCheckout({
       customer,
       valueCents: planPrice(plan, cycle),
